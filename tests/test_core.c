@@ -183,6 +183,28 @@ test_models(void)
   grav[0].rpow = 1; grav[0].rfac = rfac_v;  grav[0].theta = POTSYNTH_THETA_P; grav[0].dphi = 0;
   grav[1].rpow = 2; grav[1].rfac = rfac_dg; grav[1].theta = POTSYNTH_THETA_P; grav[1].dphi = 0;
   fast_vs_direct("core lmin=0 V + dV/dr L=120", 0, 120, 120, a, a + 500, 2, grav, 1e-12, 1e-11);
+  fast_vs_direct("core 1 channel (V) L=50", 0, 50, 50, a, a + 500, 1, grav, 1e-12, 1e-11);
+
+  /* 7 channels: every theta operator with and without a phi derivative (more
+   * channels than the specialised direct kernels, so the generic path runs) */
+  {
+    potsynth_channel all[7];
+    const int ops[7] = { POTSYNTH_THETA_P, POTSYNTH_THETA_P, POTSYNTH_THETA_DP, POTSYNTH_THETA_DP,
+                         POTSYNTH_THETA_PSIN, POTSYNTH_THETA_PSIN, POTSYNTH_THETA_P };
+    const int dph[7] = { 0, 1, 0, 1, 0, 1, 0 };
+    const int rp[7] = { 2, 2, 2, 2, 2, 2, 1 };
+    size_t c;
+
+    for (c = 0; c < 7; ++c)
+      {
+        all[c].rpow = rp[c];
+        all[c].rfac = (c == 0) ? rfac_dg : rfac_v;
+        all[c].theta = (potsynth_theta_op) ops[c];
+        all[c].dphi = dph[c];
+      }
+
+    fast_vs_direct("core 7 channels L=70", 1, 70, 70, a, a + 500, 7, all, 1e-12, 1e-11);
+  }
 }
 
 static void
