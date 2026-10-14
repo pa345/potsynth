@@ -1,0 +1,470 @@
+.. _algorithm:
+
+*********
+Algorithm
+*********
+
+This chapter describes the mathematics behind the library. It is meant for users who
+want to know where the speed and the accuracy come from, and for developers.
+
+Model and channels
+==================
+
+The library works with an internal potential expanded in 4-:math:`\pi` fully
+normalized associated Legendre functions :math:`\bar{P}_n^m`, with coefficients
+:math:`C_{nm}, S_{nm}`. Every quantity it computes has the form
+
+.. math::
+   :label: channel
+
+   f_c(r,\theta,\phi) = \sum_{n=n_0}^{L} \sum_{m=0}^{\min(n,M)}
+   \rho_c(n)\, u^{n+p_c}\; T_c\!\left[\bar{P}_n^m(\cos\theta)\right]\;
+   D_c\!\left[ C_{nm} \cos m\phi + S_{nm} \sin m\phi \right],
+   \qquad u = \frac{a}{r},
+
+where :math:`n_0` and :math:`L` are the minimum and maximum degree, :math:`M` is the
+maximum order, and :math:`c` labels a *channel*. Each channel is defined by:
+
+- a per-degree factor :math:`\rho_c(n)`;
+- a radial power offset :math:`p_c`;
+- an operator :math:`T_c` in colatitude, one of :math:`\bar{P}`,
+  :math:`d\bar{P}/d\theta` or :math:`\bar{P}/\sin\theta`;
+- an operator :math:`D_c` in longitude, either the identity or :math:`d/d\phi`.
+
+For example, the magnetic field :math:`\mathbf{B} = -\nabla V` of
+:eq:`mag_potential` is the set of three channels
+
+.. math::
+
+   B_r &= \sum (n+1)\, u^{n+2}\, \bar{P}_n^m\, [\ldots], \\
+   B_\theta &= -\sum u^{n+2}\, \frac{d\bar{P}_n^m}{d\theta}\, [\ldots], \\
+   B_\phi &= -\sum u^{n+2}\, \frac{\bar{P}_n^m}{\sin\theta}\, \frac{\partial}{\partial\phi}[\ldots],
+
+with :math:`[\ldots] = C_{nm}\cos m\phi + S_{nm}\sin m\phi` and
+:math:`C_{nm} = g_n^m/\sqrt{2n+1}`, :math:`S_{nm} = h_n^m/\sqrt{2n+1}` (conversion from
+Schmidt to 4-:math:`\pi` normalization). A gravity front-end will use the same
+mechanism for the potential, the gravity disturbance and the gradients.
+
+Overview of the fast method
+===========================
+
+The fast method has two phases.
+
+**Set-up.** This is done once per model and radial range.
+
+1. Separate the radial dependence into :math:`\rho` optimal radial functions
+   :math:`b_i(u)`, using an SVD.
+2. Write each angular function that multiplies a :math:`b_i` as an *exact* 2-D Fourier
+   series on the doubled sphere.
+3. Pre-sharpen each series and transform it by FFT to an oversampled grid.
+4. Keep only the grid rows that evaluation points can reach.
+
+**Evaluation.** This is done once per point.
+
+5. Compute the :math:`\rho` radial values :math:`b_i(a/r)`, form a :math:`w \times w`
+   weighted sum of nearby grid values for all channels at once, and combine the two.
+
+Step 5 costs :math:`O(\rho\, w^2)` operations per point, which does not depend on
+:math:`L`. Steps 3 and 5 together are a type-2 *non-uniform FFT* (NUFFT). Unlike a
+general NUFFT library, the FFT is done once, in the set-up, and the window sum is
+written for this specific structure.
+
+Step 1: radial separation
+=========================
+
+The radius enters :eq:`channel` only through the powers :math:`u^{n+p}`. All points
+lie in a shell :math:`r_{\min} \le r \le r_{\max}`, so :math:`u` lies in an interval
+:math:`[u_0, u_1] = [a/r_{\max}, a/r_{\min}]`. On a narrow interval the functions
+:math:`u^{n+p}` for different :math:`n` look very much alike, so they are numerically
+low-rank:
+
+.. math::
+
+   u^{n+p_c} \approx \sum_{i=1}^{\rho} \beta_{c,i,n}\, b_i(u),
+   \qquad u \in [u_0, u_1].
+
+Substituting this into :eq:`channel` separates the radius from the angles:
+
+.. math::
+   :label: separated
+
+   f_c(r,\theta,\phi) \approx \sum_{i=1}^{\rho} b_i(u)\, G_{c,i}(\theta,\phi),
+   \qquad
+   G_{c,i} = \sum_{n,m} \beta_{c,i,n}\, \rho_c(n)\, T_c[\bar{P}_n^m]\, D_c[\ldots].
+
+The optimal basis comes from an SVD. The functions are sampled at the :math:`K+1`
+Chebyshev--Lobatto points :math:`u_j = u_c + u_d \cos(\pi j/K)`, where
+:math:`u_c = (u_0+u_1)/2` and :math:`u_d = (u_1-u_0)/2`. These samples, weighted by
+each function's contribution to the field, form the matrix
+
+.. math::
+
+   X_{j,(p,n)} = \sqrt{c_j}\; w_{p,n}\; u_j^{n+p}, \qquad
+   w_{p,n} = \max_{c:\,p_c = p} |\rho_c(n)|\, \tau_c(n)\, \|C_n\|.
+
+Here:
+
+- :math:`c_j` are the Lobatto weights: 1/2 at the end points and 1 otherwise.
+- :math:`\|C_n\|^2 = \sum_m (C_{nm}^2 + S_{nm}^2)`.
+- :math:`\tau_c(n)` is the r.m.s. size of the operator :math:`T_c D_c`: 1 for
+  :math:`\bar{P}` and :math:`\sqrt{n(n+1)/2}` for the horizontal derivatives.
+
+:math:`K` is increased until the Chebyshev series of all functions are resolved, then
+reduced to the smallest degree whose truncation tail stays below tolerance.
+
+A one-sided Jacobi SVD, :math:`X = U S W^T`, gives singular values accurate to the
+level of rounding, which the machine-precision mode needs. The rank :math:`\rho` is the
+number of singular values above :math:`\tau_r s_1`, where :math:`\tau_r = 0.1\varepsilon`
+by default. Then:
+
+.. math::
+
+   b_i(u_j) = U_{ji}/\sqrt{c_j}, \qquad
+   \beta_{c,i,n} = \sum_j U_{ji}\sqrt{c_j}\, u_j^{n+p_c},
+
+The second formula is the projection onto the basis in the discrete Chebyshev inner
+product. Each :math:`b_i` is stored as a Chebyshev series in
+:math:`t = (u-u_c)/u_d \in [-1,1]`, so evaluating all :math:`\rho` radial values at a
+point costs about :math:`\rho K` operations.
+
+For a satellite shell (250--800 km), :math:`\rho = 5` gives :math:`10^{-6}` accuracy
+and :math:`\rho \approx 12` gives :math:`10^{-14}`. Thicker shells need more radial
+functions: :math:`r \in [a, 2a]` needs :math:`\rho \approx 23` at :math:`10^{-14}`. When
+:math:`r_{\min} = r_{\max}` a single constant function is used.
+
+Step 2: exact Fourier series on the doubled sphere
+==================================================
+
+Colatitude only runs from 0 to :math:`\pi`. Extend it to a full circle,
+:math:`\theta \in [0, 2\pi)`, keeping :math:`\cos\theta` and :math:`\sin\theta` as usual
+(so :math:`\sin\theta < 0` for :math:`\theta > \pi`). This is the *doubled sphere*. On
+it, :math:`\bar{P}_n^m(\cos\theta)` and :math:`d\bar{P}_n^m/d\theta` are trigonometric
+polynomials of degree at most :math:`n`, and for :math:`m \ge 1` so is
+:math:`\bar{P}_n^m/\sin\theta`, of degree at most :math:`n-1`. The reason is that
+:math:`\bar{P}_n^m = \sin^m\theta\, q(\cos\theta)`, where :math:`q` is a polynomial. In
+particular, :math:`\bar{P}/\sin\theta` has no singularity at the poles. Every angular
+function in :eq:`separated` is therefore an **exact** 2-D trigonometric polynomial of
+degree at most :math:`L`:
+
+.. math::
+
+   G_{c,i}(\theta,\phi) = \mathrm{Re} \sum_{m=0}^{M} H_m(\theta)\, e^{im\phi}, \qquad
+   H_m(\theta) = \sum_{|p| \le L} \hat{H}_m[p]\, e^{ip\theta}.
+
+For each order :math:`m`, the functions :math:`H_m = S_A - i S_B` are evaluated at
+:math:`N_\theta \ge 2L+2` equally spaced colatitudes :math:`\theta_j = (j+\tfrac12)\,
+2\pi/N_\theta`. Here :math:`S_A` and :math:`S_B` are the sums over :math:`n` that
+multiply :math:`\cos m\phi` and :math:`\sin m\phi`. The half-step shift keeps the nodes
+off the poles. One FFT per channel then gives the coefficients
+:math:`\hat{H}_m[p]` *exactly*. This step makes no approximation.
+
+**Symmetries.** :math:`N_\theta` is a multiple of 4, and the Legendre recursion runs
+only on the nodes in :math:`(0, \pi/2)`. The other three quadrants follow from
+symmetry. The sums over :math:`n` are split by the parity of :math:`n-m` into
+:math:`E` (even) and :math:`O` (odd). Then:
+
+.. list-table::
+   :header-rows: 1
+
+   * - node
+     - :math:`\bar{P}`, :math:`\bar{P}/\sin\theta`
+     - :math:`d\bar{P}/d\theta`
+   * - :math:`\theta_j`
+     - :math:`E + O`
+     - :math:`E + O`
+   * - :math:`\pi - \theta_j`
+     - :math:`E - O`
+     - :math:`O - E`
+   * - :math:`2\pi - \theta_j`
+     - :math:`\sigma (E + O)`
+     - :math:`\sigma (E + O)`
+   * - :math:`\pi + \theta_j`
+     - :math:`\sigma (E - O)`
+     - :math:`\sigma (O - E)`
+
+with :math:`\sigma = (-1)^m` for :math:`\bar{P}`, and :math:`\sigma = (-1)^{m-1}` for
+:math:`\bar{P}/\sin\theta` and :math:`d\bar{P}/d\theta`. This cuts the recursion work
+by a factor of four.
+
+**Fused accumulation.** The Legendre values are never stored. In blocks of 8 nodes,
+each column recursion (fixed :math:`m`, increasing :math:`n`) is consumed immediately
+by a register-blocked kernel. The kernel accumulates the even and odd sums of every
+(channel, radial function) pair with precomputed weights
+:math:`\beta_{c,i,n}\rho_c(n)C_{nm}`. Coefficients and recursion factors are stored in
+*M-major* order (fixed :math:`m` contiguous in :math:`n`), which is the order the
+recursion reads them in. The orders :math:`m` are distributed over threads.
+
+Step 3: pre-sharpening and the fine grid
+========================================
+
+Consider a 1-D trigonometric polynomial :math:`f(x) = \sum_{|k|\le N} c_k e^{ikx}` that
+has to be evaluated at arbitrary points. Choose a short window :math:`\phi(x)` that
+covers :math:`w` grid steps of a fine grid :math:`x_l = lh`, :math:`h = 2\pi/n_f`.
+Instead of the samples of :math:`f`, store the *pre-sharpened* values
+
+.. math::
+
+   g_l = \sum_{|k|\le N} c_k\, \frac{h}{\hat{\phi}(k)}\, e^{ikx_l},
+   \qquad \hat{\phi}(k) = \int \phi(x)\, e^{-ikx}\, dx.
+
+The window sum :math:`\tilde{f}(x) = \sum_l g_l\, \phi(x - x_l)` involves only the
+:math:`w` grid points near :math:`x`. By the Poisson summation formula,
+
+.. math::
+
+   \tilde{f}(x) = f(x) + \sum_k c_k \sum_{j \ne 0}
+   \frac{\hat{\phi}(k - j n_f)}{\hat{\phi}(k)}\, e^{i(k - j n_f)x}.
+
+The :math:`j=0` term reproduces :math:`f` exactly, because the factor
+:math:`h/\hat\phi(k)` cancels the smoothing of the window. The remaining terms are
+aliases. They are small when :math:`\hat\phi` is large on the band :math:`|k| \le N`
+and small at the alias frequencies :math:`|k - j n_f| \ge n_f - N`. This is achieved
+with an *oversampled* grid, :math:`n_f \approx \sigma(2N+1)` with :math:`\sigma = 2`,
+and the "exponential of semicircle" window (Barnett et al., 2019),
+
+.. math::
+
+   \phi(x) = \exp\!\left(\beta\left(\sqrt{1-z^2} - 1\right)\right), \quad
+   z = \frac{x}{wh/2}, \quad
+   \beta = \pi\left(1 - \frac{1}{2\sigma}\right) w.
+
+The alias ratio is then about :math:`e^{-\beta}`, so the error falls by about one
+decimal digit for each extra window point. :math:`\hat\phi(k)` is computed by quadrature
+with the substitution :math:`z = \sin t`. This removes the square-root singularity of
+:math:`\phi` at the window edges, so Gauss--Legendre quadrature converges exponentially.
+
+In two dimensions the window is the product :math:`\phi(\theta)\phi(\phi)`. For each
+order :math:`m`, the coefficients :math:`\hat{H}_m[p]` are multiplied by
+:math:`h_1 h_2/(\hat\phi_1(p)\hat\phi_2(m))`, zero-padded, and transformed by an inverse
+FFT of length :math:`n_{f,1}` to the fine colatitude grid. The real function
+:math:`G_{c,i}` is stored directly as a real grid. Along longitude each row is a
+half-complex spectrum (:math:`X_0 = \mathrm{Re}\, T_0`, :math:`X_m = T_m/2`), which one
+inverse real FFT of length :math:`n_{f,2}` per row and channel turns into grid values.
+These spectra are written into the grid itself, so peak memory during set-up is about
+the size of the final grid.
+
+Step 4: storing only what is needed
+===================================
+
+Points have :math:`\theta \in [0,\pi]`, and a window reaches :math:`w/2` grid steps
+either side. So only the rows :math:`-w/2 - 1 \lesssim l \lesssim \pi/h_1 + w/2 + 1`
+are stored, about half the doubled-sphere grid plus a margin.
+
+- **Rows below 0 and above** :math:`\pi`: these hold values from the mirror half of the
+  doubled sphere. They serve points near a pole, whose windows straddle it. Because the
+  angular functions are smooth across the poles, the window sum is as accurate there as
+  anywhere else, so the poles need no special treatment.
+- **Padding columns:** the grid has :math:`w/2 + 1` periodically repeated columns on
+  each side, so a window never wraps around in longitude.
+- **Channel layout:** all :math:`n_{ch} = \rho \times` (number of channels) values of a
+  grid node are stored next to each other, padded to a multiple of 4. One row of a
+  point's window is then a single contiguous block of :math:`w\, n_{ch}` values.
+
+Step 5: evaluation
+==================
+
+For a point :math:`(r,\theta,\phi)`:
+
+1. **Window weights.** With :math:`\ell_1 = \lceil \theta/h_1 - w/2 \rceil` and
+   :math:`\ell_2 = \lceil \phi/h_2 - w/2 \rceil`, compute the :math:`2w` weights
+   :math:`\phi(\theta - (\ell_1+a)h_1)` and :math:`\phi(\phi - (\ell_2+b)h_2)`. The
+   indices are clamped to the stored grid, so no input can read out of bounds.
+2. **Window sum, all channels at once:**
+
+   .. math::
+
+      s_q = \sum_{a,b=0}^{w-1} \phi_1[a]\, \phi_2[b]\; g_q[\ell_1 + a, \ell_2 + b],
+      \qquad q = 1 \ldots n_{ch}.
+
+   This is the main cost, :math:`n_{ch} w^2` multiply-adds. The kernel processes 8
+   channels at a time with 4 independent partial sums each, all in vector registers,
+   which hides the latency of the fused multiply-add.
+3. **Radial values** :math:`b_i(a/r)`, from their Chebyshev series.
+4. **Combination:** :math:`f_c = \sum_i b_i\, s_{c,i}`.
+
+Points are processed in chunks. Within a chunk they are counting-sorted by grid block,
+so consecutive points read neighbouring memory, and blocks of points are distributed
+over threads. All inputs are validated before any output is written. Points with a
+non-finite coordinate give NaN outputs.
+
+The whole fast method is one linear map,
+:math:`\mathbf{f} = S\, \mathcal{F}^{-1} D\, \Lambda\, R\, \mathbf{C}`:
+
+- :math:`R` is the radial split;
+- :math:`\Lambda` is the exact Legendre-to-Fourier map;
+- :math:`D` is the diagonal pre-sharpening;
+- :math:`\mathcal{F}^{-1}` is the inverse FFT;
+- :math:`S` is the sparse window/radial evaluation.
+
+Only :math:`S` (through :math:`w`) and :math:`R` (through :math:`\rho`) are approximate.
+
+The direct method
+=================
+
+The direct method evaluates :eq:`channel` point by point:
+
+- **Blocks of points.** Points are taken 8 at a time. For each order :math:`m`, a single
+  pass over :math:`n` runs the Legendre column recursion (vectorized across 4 points),
+  multiplies by the running radial factor :math:`u^n`, and adds the term to every
+  channel. All accumulators stay in vector registers. Specialized kernels exist for
+  1--6 channels, with a generic version otherwise.
+- **Quantities carried across orders.** :math:`\sin^{m-1}\theta` (as mantissa and
+  exponent), :math:`u^m`, and :math:`\cos m\phi`, :math:`\sin m\phi` are updated from
+  one order to the next. The angles use a rotation that is recomputed exactly every 16
+  orders, so rounding errors cannot build up.
+
+No table of Legendre functions is ever stored.
+
+Associated Legendre functions
+=============================
+
+The recursions are those of ``gsl_sf_alf_vsh_array`` (GSL), which follow Holmes &
+Featherstone (2002), with the 4-:math:`\pi` recurrence factors
+
+.. math::
+
+   a_n^m = \sqrt{\frac{(2n+1)(2n-1)}{(n+m)(n-m)}}, \quad
+   b_n^m = -\sqrt{\frac{(n+m-1)(n-m-1)(2n+1)}{(n+m)(n-m)(2n-3)}}, \quad
+   c_m = \sqrt{2m+3}.
+
+For :math:`m \ge 1` the recursion runs on the *scaled, pole-safe* quantities
+
+.. math::
+
+   Q_n^m = 2^{-s_m}\, \frac{\bar{P}_n^m}{\sin^m\theta}, \qquad
+   E_n^m = 2^{-s_m}\, \frac{d\bar{P}_n^m/d\theta}{\sin^{m-1}\theta}.
+
+Both are polynomials in :math:`x = \cos\theta`:
+
+.. math::
+
+   Q_m^m &= 2^{-s_m} \prod_{k=1}^{m} d_k, \qquad E_m^m = m\, x\, Q_m^m, \\
+   Q_{m+1}^m &= c_m\, x\, Q_m^m, \qquad E_{m+1}^m = c_m \left(x E_m^m - s^2 Q_m^m\right), \\
+   Q_n^m &= a_n^m\, x\, Q_{n-1}^m + b_n^m\, Q_{n-2}^m, \qquad
+   E_n^m = a_n^m \left(x E_{n-1}^m - s^2 Q_{n-1}^m\right) + b_n^m E_{n-2}^m,
+
+with :math:`s = \sin\theta`, :math:`d_1 = \sqrt{3}` and :math:`d_k = \sqrt{1 + 1/(2k)}`.
+No step divides by :math:`\sin\theta`. Then
+
+.. math::
+
+   \bar{P}_n^m = 2^{s_m} s^m Q_n^m, \qquad
+   \frac{\bar{P}_n^m}{\sin\theta} = 2^{s_m} s^{m-1} Q_n^m, \qquad
+   \frac{d\bar{P}_n^m}{d\theta} = 2^{s_m} s^{m-1} E_n^m.
+
+The powers of :math:`s` are applied as a mantissa and exponent, so they never
+underflow or overflow. Only :math:`s^2` enters the recursion, so it works unchanged on
+the doubled sphere (:math:`s < 0`) and at the poles (:math:`s = 0`).
+
+**Scaling.** :math:`Q_n^m` is largest at the poles, where
+
+.. math::
+
+   Q_n^m(\pm 1) = 2^{-s_m} \sqrt{2(2n+1)}\, \frac{\sqrt{(n+m)!/(n-m)!}}{2^m\, m!}.
+
+The exponent :math:`s_m \ge 0` is the smallest power of two that keeps all values
+below :math:`2^{960}`. Most columns need no scaling at all: none do below
+:math:`L \approx 1370`. Because the scaling is an exact power of two, it costs no
+accuracy. It is what lets the method run in double precision up to
+:math:`L = 2800`.
+
+GSL's ``gsl_sf_alf_array`` and ``gsl_sf_alf_vsh_array`` compute the diagonal seed
+:math:`\bar{P}_m^m` without this rescaling. When :math:`\sin^m\theta` underflows, at
+degrees above about 1900, whole columns come out zero or wrong. For example, at
+:math:`L = 2190`, :math:`\theta = 0.4`, the value :math:`\bar{P}_{2054}^{793} = 6.69`
+(confirmed with 60-digit arithmetic) comes out as 0 or 10.2. The scaled columns above
+give the correct value.
+
+**Accuracy near the poles.** Close to :math:`x = \pm 1` the three-term recursion
+behaves like :math:`P_n \approx 2P_{n-1} - P_{n-2}`, so rounding errors grow linearly
+at each step. The relative error is then about :math:`\varepsilon L^2`, roughly
+:math:`10^{-12}` at :math:`L = 185` and :math:`10^{-10}` at :math:`L = 2190`. This
+holds for any implementation of the standard recursion, including GSL.
+
+Accuracy and parameter choice
+=============================
+
+The fast method has three error sources:
+
+- the window, controlled by :math:`w`;
+- truncation of the radial SVD, controlled by :math:`\rho` (tolerance
+  :math:`0.1\varepsilon`);
+- floating-point rounding.
+
+The requested accuracy :math:`\varepsilon` is relative to the largest output value
+:math:`\max|f|`. The window width is the smallest :math:`w` whose *measured* error is
+below :math:`\varepsilon`. The measurements below are against 19-digit reference values,
+taking the worst case over :math:`L = 13` and :math:`L = 185` and over a satellite shell
+and a thick shell:
+
+=====  ==============================  ===========================
+w      :math:`\sigma = 2` (default)     :math:`\sigma = 3`
+=====  ==============================  ===========================
+4      :math:`8 \times 10^{-4}`        :math:`2 \times 10^{-4}`
+5      :math:`2 \times 10^{-5}`        :math:`3 \times 10^{-5}`
+6      :math:`9 \times 10^{-6}`        :math:`1 \times 10^{-6}`
+7      :math:`7 \times 10^{-7}`        :math:`2 \times 10^{-7}`
+8      :math:`3 \times 10^{-8}`        :math:`7 \times 10^{-9}`
+9      :math:`5 \times 10^{-9}`        :math:`7 \times 10^{-10}`
+10     :math:`6 \times 10^{-10}`       :math:`6 \times 10^{-11}`
+11     :math:`3 \times 10^{-11}`       :math:`3 \times 10^{-12}`
+12     :math:`6 \times 10^{-12}`       :math:`4 \times 10^{-13}`
+13     :math:`4 \times 10^{-13}`       :math:`1 \times 10^{-14}`
+14     :math:`3 \times 10^{-14}`       :math:`1 \times 10^{-14}`
+15     :math:`1 \times 10^{-14}`       :math:`7 \times 10^{-15}`
+16     :math:`7 \times 10^{-15}`       :math:`9 \times 10^{-15}`
+=====  ==============================  ===========================
+
+The error does not depend on :math:`L` or on the radial range. About
+:math:`5 \times 10^{-15}` is the rounding floor of double precision; the direct method
+reaches :math:`1\text{--}2 \times 10^{-15}`. :math:`\sigma = 3` gives the same accuracy
+with a smaller :math:`w` (a faster evaluation), but uses a grid 2.25 times larger.
+
+Cost and memory
+===============
+
+**Set-up.**
+
+- The Legendre recursion and accumulation take about
+  :math:`L^2 N_\theta/8 \times (8 + 4 n_{ch})` operations, distributed over the orders
+  :math:`m`.
+- The FFTs take :math:`O(n_{ch} L^2 \log L)`.
+
+In practice set-up takes about 0.07 s at :math:`L = 185` and about 1 s at :math:`L = 720`
+on 16 threads.
+
+**Memory.** The grid holds :math:`n_{rows} \times n_{cols} \times n_{ch}` doubles, with
+:math:`n_{rows} \approx n_f/2 + w`, :math:`n_{cols} \approx n_f + 1.5w` and
+:math:`n_f \approx \sigma(2L+1)`. That is roughly :math:`8\sigma^2 L^2\, n_{ch}` bytes:
+64 MB at :math:`L = 185` and :math:`\varepsilon = 10^{-10}`, 0.9 GB at :math:`L = 720`.
+
+**Evaluation per point.**
+
+- :math:`2w` window weights;
+- :math:`n_{ch} w^2` multiply-adds (the dominant term);
+- about :math:`\rho K` operations for the radial values.
+
+None of these depend on :math:`L`. At :math:`\varepsilon = 10^{-10}`
+(:math:`w = 11`, :math:`n_{ch} = 27`) this is about 3300 multiply-adds, or 0.5 µs per
+point on one core.
+
+**Direct method:** :math:`O(L^2)` per point. It is faster than the fast method up to
+:math:`L \approx 20\text{--}30`, depending on the accuracy and the number of threads.
+``POTSYNTH_METHOD_AUTO`` uses the direct method for :math:`L < 24`.
+
+References
+==========
+
+- A. H. Barnett, J. Magland, L. af Klinteberg, A parallel nonuniform fast Fourier
+  transform library based on an "exponential of semicircle" kernel, *SIAM J. Sci.
+  Comput.* 41(5), C479--C504, 2019.
+- A. Dutt, V. Rokhlin, Fast Fourier transforms for nonequispaced data, *SIAM J. Sci.
+  Comput.* 14(6), 1368--1393, 1993.
+- S. A. Holmes, W. E. Featherstone, A unified approach to the Clenshaw summation and
+  the recursive computation of very high degree and order normalised associated
+  Legendre functions, *J. Geodesy* 76, 279--299, 2002.
+- S. Kunis, D. Potts, Fast spherical Fourier algorithms, *J. Comput. Appl. Math.* 161,
+  75--98, 2003.
+- N. Schaeffer, Efficient spherical harmonic transforms aimed at pseudospectral
+  numerical simulations, *Geochem. Geophys. Geosyst.* 14(3), 751--758, 2013.
+- M. Reinecke, pocketfft, https://gitlab.mpcdf.mpg.de/mtr/pocketfft.

@@ -4,6 +4,7 @@ project(potsynth VERSION 0.1.0 LANGUAGES C)
 option(POTSYNTH_OPENMP "Use OpenMP threads" ON)
 option(POTSYNTH_NATIVE "Optimise for the build machine (-march=native)" ON)
 option(POTSYNTH_TESTS "Build the tests" ON)
+option(POTSYNTH_EXAMPLES "Build the example programs" ON)
 option(POTSYNTH_NO_VECEXT "Use the portable scalar kernels instead of vector extensions" OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -74,6 +75,11 @@ install(TARGETS potsynth
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES include/potsynth.h include/potsynth_mag.h
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+if(POTSYNTH_EXAMPLES)
+  add_executable(example_mag examples/example_mag.c)
+  target_link_libraries(example_mag PRIVATE potsynth)
+endif()
 
 if(POTSYNTH_TESTS)
   enable_testing()

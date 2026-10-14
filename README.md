@@ -5,24 +5,34 @@ Geomagnetic models (IGRF, CHAOS, lithospheric models) are supported now; gravity
 (EGM and similar) are planned.
 
 After a one-off set-up, the cost per point does not depend on the maximum degree L.
-For example, with 10^6 points, eps = 1e-10 and 16 threads on an Intel Core Ultra 7 265H:
+With 10^6 points, eps = 1e-10 and 16 threads on an Intel Core Ultra 7 265H, compared
+with the library's own optimized direct sum:
 
-| L    | grid    | set-up | evaluation | direct sum | speedup |
-|------|---------|--------|------------|------------|---------|
-| 13   | 0.4 MB  | 3 ms   | 0.052 s    | 0.15 s     | 2.9x    |
-| 60   | 7 MB    | 12 ms  | 0.062 s    | 1.1 s      | 19x     |
-| 185  | 64 MB   | 57 ms  | 0.072 s    | 8.3 s      | 115x    |
-| 720  | 0.9 GB  | 0.85 s | 0.13 s     | 174 s      | 1350x   |
+| L    | grid    | set-up  | evaluation | direct sum | speedup |
+|------|---------|---------|------------|------------|---------|
+| 13   | 0.4 MB  | 0.004 s | 0.044 s    | 0.023 s    | 0.5x    |
+| 60   | 7 MB    | 0.008 s | 0.053 s    | 0.21 s     | 3.8x    |
+| 185  | 64 MB   | 0.073 s | 0.072 s    | 1.6 s      | 23x     |
+| 400  | 288 MB  | 0.25 s  | 0.076 s    | 10.8 s     | 141x    |
+| 720  | 0.9 GB  | 1.1 s   | 0.19 s     | 39 s       | 205x    |
+
+The direct sum itself is 4.5-9.5x faster than computing the Legendre functions first
+(`gsl_sf_alf_vsh_array`) and then summing. The library uses the direct sum for low degrees.
 
 The requested accuracy can be set anywhere from about 1e-4 down to the double-precision
-rounding floor (about 5e-15 relative to max |B|). The method is described in
+rounding floor (about 5e-15 relative to max |B|). The method is described in the
+documentation (`doc/algorithm.rst`) and in
 `prototype/Fast_Evaluation_Guide.pdf`.
 
 Status: **pre-1.0**. Forward evaluation of static models is implemented and tested.
 
+Documentation: `doc/` (Sphinx). Build it with `make -C doc html`, then open
+`doc/_build/html/index.html`.
+
 ## Design
 
-- C library with a Python wrapper (the wrapper is planned). There is a single implementation.
+- C library with a Python interface (`python/potsynth`, via ctypes and NumPy). There is a single
+  implementation.
 - No required dependencies. OpenMP is optional, and an FFT (pocketfft, BSD) is vendored in
   `extern/`.
 - Double precision throughout. Legendre functions use the Holmes & Featherstone
@@ -59,6 +69,16 @@ potsynth_eval_free(ew);
 potsynth_free(w);
 ```
 
+Python:
+
+```python
+import potsynth
+model = potsynth.MagModel((g, h), rmin=rmin, rmax=rmax, eps=1e-10)
+Br, Btheta, Bphi = model(r, theta, phi)
+```
+
+Complete examples are in `examples/`.
+
 ## Building
 
     cmake -S . -B build
@@ -89,9 +109,10 @@ Options:
   - bitwise reproducibility across chunk sizes and thread counts.
 - `test_threads`: one workspace evaluated concurrently from 8 threads.
 - `test_alf` (if GSL is found): the Legendre functions against GSL.
+- `python` (shared builds): the Python interface.
 
-`tests/check.sh` builds and tests every configuration: release, generic scalar kernels,
-ASan+UBSan, and TSan.
+`tests/check.sh` builds and tests every configuration: release, shared, generic scalar
+kernels, ASan+UBSan, and TSan.
 
 ## Layout
 
@@ -99,14 +120,16 @@ ASan+UBSan, and TSan.
     src/         implementation
     extern/      vendored third-party code (pocketfft)
     tests/       tests, long-double reference data (tests/data), benchmark
-    python/      Python package (planned)
+    python/      Python package (ctypes interface to the shared library)
+    examples/    C and Python examples
+    doc/         Sphinx documentation
     prototype/   original Python/numba prototype and write-up
 
 ## Roadmap
 
 1. ~~Core set-up and fused evaluation; direct method; validation~~ (done)
 2. Magnetic front-end: time-dependent models, SHC reader.
-3. Python wrapper and wheels.
+3. Python wheels (pip-installable packages; the ctypes interface works now).
 4. Gravity front-end.
 5. Adjoint (transpose) operator for inversions (separate extension).
 

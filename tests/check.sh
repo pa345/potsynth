@@ -3,6 +3,7 @@
 # check.sh -- build and test potsynth in every supported configuration
 #
 #   release   default build (OpenMP, vector extensions)
+#   shared    shared library (also runs the Python interface test)
 #   generic   portable scalar kernels (POTSYNTH_NO_VECEXT)
 #   asan      AddressSanitizer + UndefinedBehaviorSanitizer + leak check, no OpenMP
 #   tsan      ThreadSanitizer, no OpenMP in the library (GCC's OpenMP runtime is
@@ -17,7 +18,7 @@ set -e
 SRC=$(cd "$(dirname "$0")/.." && pwd)
 ROOT=${1:-$SRC/build-check}
 [ $# -gt 0 ] && shift
-CONFIGS=${*:-"release generic asan tsan"}
+CONFIGS=${*:-"release shared generic asan tsan"}
 CMAKE=${CMAKE:-cmake}
 CTEST=${CTEST:-$(dirname "$(command -v "$CMAKE")")/ctest}
 
@@ -33,6 +34,7 @@ for cfg in $CONFIGS; do
   flags=""
   case $cfg in
     release) opts="-DCMAKE_BUILD_TYPE=Release" ;;
+    shared)  opts="-DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON" ;;
     generic) opts="-DCMAKE_BUILD_TYPE=Release -DPOTSYNTH_NO_VECEXT=ON" ;;
     asan)    opts="-DCMAKE_BUILD_TYPE=Debug -DPOTSYNTH_OPENMP=OFF"
              flags="-fsanitize=address,undefined -fno-omit-frame-pointer -O1" ;;
