@@ -1,0 +1,22 @@
+\begin{table}[!htbp]\centering\small
+\caption{Effect of the two simplifications of \cref{sec:real,sec:half}: the earlier complex-valued, full-grid implementation (``old'')
+versus the real-valued, half-grid implementation (``new''), at identical window width $w$, $\sigma=2$ and radial rank $\rho$.
+$M=10^6$ points; times in seconds, grid sizes in MB (0 means below 0.5\,MB).}\label{tab:oldnew}
+\begin{tabular}{rrr rrr rr}\toprule
+$L$&$w$&$\rho$&old&new&speedup&old grid&new grid\\\midrule
+13 & 8 & 5 & 0.64 & 0.41 & 1.56 & 0 & 0\\
+13 & 12 & 7 & 1.17 & 0.73 & 1.59 & 1 & 0\\
+13 & 14 & 8 & 1.69 & 0.89 & 1.90 & 1 & 0\\
+20 & 8 & 5 & 0.60 & 0.44 & 1.36 & 1 & 1\\
+20 & 12 & 7 & 1.26 & 0.79 & 1.59 & 1 & 1\\
+20 & 14 & 9 & 1.76 & 1.13 & 1.56 & 2 & 1\\
+45 & 8 & 6 & 0.83 & 0.51 & 1.63 & 5 & 3\\
+45 & 12 & 8 & 1.47 & 0.88 & 1.68 & 7 & 4\\
+45 & 14 & 10 & 1.92 & 1.29 & 1.49 & 9 & 5\\
+100 & 8 & 7 & 1.01 & 0.53 & 1.91 & 29 & 14\\
+100 & 12 & 10 & 1.70 & 1.13 & 1.50 & 41 & 21\\
+100 & 14 & 12 & 2.12 & 1.27 & 1.67 & 49 & 25\\
+185 & 8 & 7 & 0.96 & 0.51 & 1.87 & 95 & 48\\
+185 & 12 & 11 & 1.72 & 1.03 & 1.67 & 149 & 77\\
+185 & 14 & 14 & 2.69 & 1.70 & 1.58 & 190 & 98\\
+\bottomrule\end{tabular}\end{table}

@@ -1,0 +1,11 @@
+\begin{table}[!htbp]\centering\small
+\caption{Effect of the NUFFT oversampling factor on evaluation time ($M=10^6$, seconds). ``auto'' is FINUFFT's heuristic.
+$\sigma=1.25$ at $\varepsilon=10^{-10}$ needs a kernel wider than FINUFFT's maximum of 16 points.}\label{tab:upsamp}
+\begin{tabular}{rrrrr}\toprule $L$&$\varepsilon$&auto&$\sigma=2$&$\sigma=1.25$\\\midrule
+45 & $10^{-6}$ & 0.77 & 0.74 & 1.98\\
+45 & $10^{-10}$ & 1.75 & 1.65 & 5.12\\
+100 & $10^{-6}$ & 2.03 & 0.95 & 2.02\\
+100 & $10^{-10}$ & 1.89 & 1.94 & 5.07\\
+185 & $10^{-6}$ & 2.13 & 1.44 & 2.10\\
+185 & $10^{-10}$ & 2.87 & 2.75 & 5.12\\
+\bottomrule\end{tabular}\end{table}

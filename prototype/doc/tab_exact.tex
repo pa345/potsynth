@@ -1,0 +1,14 @@
+\begin{table}[!htbp]\centering\small\setlength{\tabcolsep}{4.5pt}
+\caption{Fused 2-D transform at machine precision versus direct synthesis, $M=10^6$ points, 250--800\,km shell, 2 cores.
+``Machine precision'' means a relative error of $\approx2$--$3\times10^{-14}$ against a long-double reference, the same as
+the direct double-precision sum (\cref{tab:wscan}). $\rho$: radial rank (tolerance $10^{-15}$). Times in seconds, evaluation only.}\label{tab:exact}
+\begin{tabular}{rrr rr rrr rr}\toprule
+&&&\multicolumn{2}{c}{$\sigma=2$, $w=16$}&\multicolumn{3}{c}{$\sigma=3$, $w=13$}&\multicolumn{2}{c}{$\varepsilon\approx10^{-10}$, $w=12$}\\
+\cmidrule(lr){4-5}\cmidrule(lr){6-8}\cmidrule(lr){9-10}
+$L$&$\rho$&direct&time&speedup&time&speedup&grid (MB)&time&speedup\\\midrule
+13 & 8 & 0.48 & 2.24 & 0.2 & 1.58 & 0.3 & 1 & 1.31 & 0.4\\
+20 & 9 & 1.15 & 2.37 & 0.5 & 1.67 & 0.7 & 3 & 1.32 & 0.9\\
+45 & 10 & 5.58 & 2.43 & 2.3 & 1.88 & 3.0 & 19 & 1.62 & 3.5\\
+100 & 12 & 28.08 & 3.19 & 8.8 & 2.20 & 13 & 108 & 1.60 & 18\\
+185 & 14 & 105.14 & 3.30 & 32 & 2.48 & 42 & 421 & 1.83 & 58\\
+\bottomrule\end{tabular}\end{table}

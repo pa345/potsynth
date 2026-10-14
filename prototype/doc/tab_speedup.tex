@@ -1,0 +1,19 @@
+\begin{table}[!htbp]\centering\footnotesize\setlength{\tabcolsep}{3.6pt}
+\caption{Benchmark summary (250--800\,km shell, 2 cores). $K$: radial degree chosen automatically. Times for $M=10^6$
+points in seconds (fast: evaluation only; precompute listed separately). Speedup is the ratio of evaluation times at
+$M=2\times10^6$. The error is the maximum $|\Delta B|$ over the three components versus direct synthesis, in nT
+($|\mathbf B|\lesssim 6\times10^4$\,nT). Columns: d10 = double, $\varepsilon=10^{-10}$; d6 = double, $10^{-6}$; s6 = single, $10^{-6}$.}
+\label{tab:speedup}
+\begin{tabular}{rrrrr@{\hspace{8pt}}rrr@{\hspace{8pt}}rrr@{\hspace{8pt}}rrr}\toprule
+&\multicolumn{2}{c}{$K$}&pre&direct&\multicolumn{3}{c}{fast (s)}&\multicolumn{3}{c}{speedup}&\multicolumn{3}{c}{error (nT)}\\
+\cmidrule(lr){2-3}\cmidrule(lr){6-8}\cmidrule(lr){9-11}\cmidrule(lr){12-14}
+$L$&$10^{-6}$&$10^{-10}$&(s)&(s)&d10&d6&s6&d10&d6&s6&d10&d6&s6\\\midrule
+13 & 4 & 6 & 0.008 & 0.48 & 2.09 & 0.63 & 0.59 & 0.2 & 0.7 & 0.8 & 6e-6 & 1e-1 & 1e-1 \\
+20 & 4 & 6 & 0.012 & 1.15 & 1.84 & 0.65 & 0.54 & 0.6 & 1.7 & 2.1 & 6e-6 & 9e-2 & 1e-1 \\
+30 & 4 & 7 & 0.018 & 2.37 & 1.80 & 0.73 & 0.56 & 1.3 & 3.2 & 4.6 & 6e-6 & 9e-2 & 1e-1 \\
+45 & 4 & 8 & 0.041 & 5.58 & 1.80 & 0.70 & 0.59 & 3.1 & 8.3 & 9.3 & 9e-6 & 8e-2 & 2e-1 \\
+70 & 5 & 9 & 0.193 & 13.69 & 1.76 & 0.71 & 0.54 & 8.2 & 20.1 & 25.6 & 1e-5 & 8e-2 & 4e-1 \\
+100 & 5 & 10 & 0.302 & 28.08 & 1.95 & 0.82 & 0.60 & 15.9 & 38.0 & 49.1 & 7e-6 & 7e-2 & 5e-1 \\
+133 & 6 & 11 & 0.588 & 50.19 & 2.02 & 1.01 & 0.80 & 26.8 & 59.9 & 74.6 & 8e-6 & 1e-1 & 7e-1 \\
+185 & 6 & 12 & 1.239 & 105.14 & 2.97 & 1.40 & 1.13 & 45.5 & 103.1 & 122.4 & 1e-5 & 6e-2 & 7e-1 \\
+\bottomrule\end{tabular}\end{table}

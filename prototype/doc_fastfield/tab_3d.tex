@@ -1,0 +1,15 @@
+\begin{table}[!htbp]\centering\small
+\caption{The 3-D method (FINUFFT, $\sigma=2$) versus the fused 2-D method of the main text, $M=10^6$ points, evaluation times in seconds.
+$K$: radial (Chebyshev) degree of the 3-D method. The two were run in separate sessions on the same machine. At the same requested $\varepsilon$
+the 2-D method is also more accurate (e.g.\ $1.6\times10^{-11}$ versus $\approx2\times10^{-10}$ at $L=185$, $\varepsilon=10^{-10}$).}\label{tab:3d}
+\begin{tabular}{r rrr rrr}\toprule
+&\multicolumn{3}{c}{$\varepsilon=10^{-6}$}&\multicolumn{3}{c}{$\varepsilon=10^{-10}$}\\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+$L$&$K$&3-D&2-D&$K$&3-D&2-D\\\midrule
+13 & 4 & 0.63 & 0.33 & 6 & 2.09 & 0.65\\
+20 & 4 & 0.65 & 0.31 & 6 & 1.84 & 0.78\\
+45 & 4 & 0.70 & 0.44 & 8 & 1.80 & 0.78\\
+100 & 5 & 0.82 & 0.45 & 10 & 1.95 & 0.89\\
+133 & 6 & 1.01 & 0.50 & 11 & 2.02 & 0.86\\
+185 & 6 & 1.40 & 0.43 & 12 & 2.97 & 0.88\\
+\bottomrule\end{tabular}\end{table}

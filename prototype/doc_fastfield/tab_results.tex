@@ -1,0 +1,33 @@
+\begin{table}[!htbp]\centering\small
+\caption{Main results (default fused loop): $M=10^6$ points in the 250--800\,km shell, two CPU cores. Direct sum: time (s) and relative error
+against the long-double reference. Fast method, for each requested accuracy $\varepsilon$: window width $w$, radial rank $\rho$, evaluation time (s),
+speedup over the direct sum, and measured maximum relative error against the long-double reference.}\label{tab:results}
+\begin{tabular}{rrr rrrrrr}\toprule
+&\multicolumn{2}{c}{direct sum}&\multicolumn{6}{c}{fast method}\\
+\cmidrule(lr){2-3}\cmidrule(lr){4-9}
+$L$&time&error&$\varepsilon$&$w$&$\rho$&time&speedup&error\\\midrule
+\multirow{3}{*}{13} & \multirow{3}{*}{0.48} & \multirow{3}{*}{$1.1\times10^{-15}$} & $10^{-6}$ & 7 & 4 & 0.33 & \textbf{1.4} & $5.6\times10^{-7}$\\
+ & &  & $10^{-10}$ & 11 & 6 & 0.65 & \textbf{0.7} & $2.8\times10^{-11}$\\
+ & &  & $10^{-13}$ & 14 & 8 & 1.11 & \textbf{0.4} & $4.2\times10^{-14}$\\\addlinespace[2pt]
+\multirow{3}{*}{20} & \multirow{3}{*}{1.12} & \multirow{3}{*}{$1.9\times10^{-15}$} & $10^{-6}$ & 7 & 4 & 0.31 & \textbf{3.7} & $6.4\times10^{-7}$\\
+ & &  & $10^{-10}$ & 11 & 7 & 0.78 & \textbf{1.4} & $2.3\times10^{-11}$\\
+ & &  & $10^{-13}$ & 14 & 8 & 1.12 & \textbf{1.0} & $3.6\times10^{-14}$\\\addlinespace[2pt]
+\multirow{3}{*}{30} & \multirow{3}{*}{2.41} & \multirow{3}{*}{$2.7\times10^{-15}$} & $10^{-6}$ & 7 & 4 & 0.45 & \textbf{5.3} & $6.5\times10^{-7}$\\
+ & &  & $10^{-10}$ & 11 & 7 & 0.72 & \textbf{3.3} & $1.5\times10^{-11}$\\
+ & &  & $10^{-13}$ & 14 & 9 & 1.15 & \textbf{2.1} & $3.6\times10^{-14}$\\\addlinespace[2pt]
+\multirow{3}{*}{45} & \multirow{3}{*}{5.44} & \multirow{3}{*}{$3.8\times10^{-15}$} & $10^{-6}$ & 7 & 5 & 0.44 & \textbf{12} & $5.9\times10^{-7}$\\
+ & &  & $10^{-10}$ & 11 & 7 & 0.78 & \textbf{7.0} & $1.3\times10^{-11}$\\
+ & &  & $10^{-13}$ & 14 & 9 & 1.21 & \textbf{4.5} & $3.1\times10^{-14}$\\\addlinespace[2pt]
+\multirow{3}{*}{70} & \multirow{3}{*}{13.70} & \multirow{3}{*}{$7.1\times10^{-15}$} & $10^{-6}$ & 7 & 5 & 0.46 & \textbf{30} & $6.9\times10^{-7}$\\
+ & &  & $10^{-10}$ & 11 & 8 & 0.74 & \textbf{18} & $1.5\times10^{-11}$\\
+ & &  & $10^{-13}$ & 14 & 10 & 1.24 & \textbf{11} & $3.3\times10^{-14}$\\\addlinespace[2pt]
+\multirow{3}{*}{100} & \multirow{3}{*}{27.89} & \multirow{3}{*}{$8.9\times10^{-15}$} & $10^{-6}$ & 7 & 5 & 0.45 & \textbf{63} & $6.0\times10^{-7}$\\
+ & &  & $10^{-10}$ & 11 & 9 & 0.89 & \textbf{31} & $1.4\times10^{-11}$\\
+ & &  & $10^{-13}$ & 14 & 11 & 1.33 & \textbf{21} & $3.1\times10^{-14}$\\\addlinespace[2pt]
+\multirow{3}{*}{133} & \multirow{3}{*}{50.53} & \multirow{3}{*}{$1.3\times10^{-14}$} & $10^{-6}$ & 7 & 5 & 0.50 & \textbf{102} & $6.1\times10^{-7}$\\
+ & &  & $10^{-10}$ & 11 & 9 & 0.86 & \textbf{59} & $1.4\times10^{-11}$\\
+ & &  & $10^{-13}$ & 14 & 12 & 1.38 & \textbf{37} & $3.1\times10^{-14}$\\\addlinespace[2pt]
+\multirow{3}{*}{185} & \multirow{3}{*}{86.25} & \multirow{3}{*}{$1.6\times10^{-14}$} & $10^{-6}$ & 7 & 5 & 0.43 & \textbf{201} & $6.3\times10^{-7}$\\
+ & &  & $10^{-10}$ & 11 & 9 & 0.88 & \textbf{98} & $1.6\times10^{-11}$\\
+ & &  & $10^{-13}$ & 14 & 12 & 1.33 & \textbf{65} & $3.3\times10^{-14}$\\\addlinespace[2pt]
+\bottomrule\end{tabular}\end{table}

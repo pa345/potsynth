@@ -1,0 +1,10 @@
+\begin{table}[!htbp]\centering\footnotesize\setlength{\tabcolsep}{3pt}
+\caption{Maximum relative error of the fused 2-D transform against a 19-digit (long double) reference, as a function of
+kernel width $w$ and oversampling $\sigma$ ($L=185$, 1500 points including both poles, radial rank $\rho=14$).
+For comparison, the direct double-precision sum has error $1.6\times10^{-14}$. Grid sizes are the stored oversampled grids.}\label{tab:wscan}
+\begin{tabular}{lccccccccc}\toprule
+&$w=8$ & $w=9$ & $w=10$ & $w=11$ & $w=12$ & $w=13$ & $w=14$ & $w=15$ & $w=16$\\\midrule
+$\sigma=2$ (190\,MB) & $2\times10^{-7}$ & $1\times10^{-8}$ & $4\times10^{-9}$ & $6\times10^{-10}$ & $6\times10^{-11}$ & $3\times10^{-12}$ & $3\times10^{-13}$ & $7\times10^{-14}$ & $2\times10^{-14}$\\
+$\sigma=3$ (421\,MB) & $2\times10^{-8}$ & $2\times10^{-9}$ & $2\times10^{-10}$ & $2\times10^{-11}$ & $1\times10^{-12}$ & $3\times10^{-14}$ & -- & -- & --\\
+$\sigma=4$ (749\,MB) & $6\times10^{-9}$ & $8\times10^{-10}$ & $6\times10^{-11}$ & $4\times10^{-12}$ & $7\times10^{-14}$ & $3\times10^{-14}$ & -- & -- & --\\
+\bottomrule\end{tabular}\end{table}

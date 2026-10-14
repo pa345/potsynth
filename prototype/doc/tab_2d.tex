@@ -1,0 +1,20 @@
+\begin{table}[!htbp]\centering\footnotesize\setlength{\tabcolsep}{4pt}
+\caption{Fused 2-D variant versus the 3-D NUFFT method (FINUFFT), 250--800\,km shell, 2 cores, double precision.
+$K+1$: number of Chebyshev radial terms; $\rho$: SVD radial rank (cutoff $0.3\varepsilon$). Times in seconds, evaluation only.
+``FINUFFT 2-D'' is the same 2-D split executed as $3\rho$ batched FINUFFT transforms, without fusion.
+The last two columns give the speedups over direct synthesis at $M=2\times10^6$.}\label{tab:2d}
+\begin{tabular}{rrrr rr rrr r rr}\toprule
+&&&&\multicolumn{2}{c}{$M=10^5$}&\multicolumn{3}{c}{$M=2\times10^6$}&3-D/2-D&\multicolumn{2}{c}{vs direct}\\
+\cmidrule(lr){5-6}\cmidrule(lr){7-9}\cmidrule(lr){11-12}
+$L$&$\varepsilon$&$K{+}1$&$\rho$&3-D&2-D&3-D&2-D&FINUFFT 2-D&($2{\times}10^6$)&3-D&2-D\\\midrule
+13 & $10^{-6}$ & 5 & 4 & 0.068 & 0.079 & 1.44 & 1.21 & 2.16 & 1.19 & 0.7 & 0.8\\
+13 & $10^{-10}$ & 7 & 6 & 0.243 & 0.156 & 4.20 & 2.11 & 4.72 & 1.99 & 0.2 & 0.5\\
+20 & $10^{-6}$ & 5 & 4 & 0.072 & 0.082 & 1.47 & 1.33 & 2.62 & 1.10 & 1.6 & 1.7\\
+20 & $10^{-10}$ & 7 & 6 & 0.284 & 0.180 & 4.06 & 2.33 & 4.99 & 1.74 & 0.6 & 1.0\\
+45 & $10^{-6}$ & 5 & 4 & 0.123 & 0.119 & 1.48 & 1.57 & 2.57 & 0.94 & 7.5 & 7.1\\
+45 & $10^{-10}$ & 9 & 7 & 0.270 & 0.166 & 3.53 & 2.57 & 5.68 & 1.37 & 3.2 & 4.3\\
+100 & $10^{-6}$ & 6 & 5 & 0.239 & 0.123 & 1.64 & 1.85 & 3.27 & 0.89 & 34 & 30\\
+100 & $10^{-10}$ & 11 & 8 & 0.526 & 0.184 & 3.60 & 3.03 & 6.29 & 1.19 & 16 & 19\\
+185 & $10^{-6}$ & 7 & 5 & 0.772 & 0.136 & 2.24 & 1.94 & 3.38 & 1.15 & 94 & 108\\
+185 & $10^{-10}$ & 13 & 9 & 1.639 & 0.197 & 4.80 & 3.35 & 7.68 & 1.44 & 44 & 63\\
+\bottomrule\end{tabular}\end{table}

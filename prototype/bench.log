@@ -1,0 +1,96 @@
+L= 13 double 1e-10  K= 6 M=   10000 pre= 0.008s fast=  0.024s direct=    0.00s  x   0.2 (x   0.1 incl pre)  err=5.0e-06 nT
+L= 13 double 1e-10  K= 6 M=  100000 pre= 0.008s fast=  0.204s direct=    0.05s  x   0.2 (x   0.2 incl pre)  err=5.6e-06 nT
+L= 13 double 1e-10  K= 6 M= 1000000 pre= 0.008s fast=  2.091s direct=    0.48s  x   0.2 (x   0.2 incl pre)  err=5.6e-06 nT
+L= 13 double 1e-10  K= 6 M= 2000000 pre= 0.008s fast=  4.183s direct=    0.95s  x   0.2 (x   0.2 incl pre)  err=5.6e-06 nT
+L= 13 double 1e-6   K= 4 M=   10000 pre= 0.014s fast=  0.014s direct=    0.00s  x   0.3 (x   0.2 incl pre)  err=8.6e-02 nT
+L= 13 double 1e-6   K= 4 M=  100000 pre= 0.014s fast=  0.071s direct=    0.05s  x   0.7 (x   0.6 incl pre)  err=9.5e-02 nT
+L= 13 double 1e-6   K= 4 M= 1000000 pre= 0.014s fast=  0.629s direct=    0.48s  x   0.8 (x   0.7 incl pre)  err=9.8e-02 nT
+L= 13 double 1e-6   K= 4 M= 2000000 pre= 0.014s fast=  1.343s direct=    0.95s  x   0.7 (x   0.7 incl pre)  err=9.8e-02 nT
+L= 13 single 1e-6   K= 4 M=   10000 pre= 0.016s fast=  0.008s direct=    0.00s  x   0.6 (x   0.2 incl pre)  err=1.0e-01 nT
+L= 13 single 1e-6   K= 4 M=  100000 pre= 0.016s fast=  0.054s direct=    0.05s  x   0.9 (x   0.7 incl pre)  err=1.1e-01 nT
+L= 13 single 1e-6   K= 4 M= 1000000 pre= 0.016s fast=  0.592s direct=    0.48s  x   0.8 (x   0.8 incl pre)  err=1.2e-01 nT
+L= 13 single 1e-6   K= 4 M= 2000000 pre= 0.016s fast=  1.160s direct=    0.95s  x   0.8 (x   0.8 incl pre)  err=1.2e-01 nT
+L= 20 double 1e-10  K= 6 M=   10000 pre= 0.012s fast=  0.027s direct=    0.01s  x   0.4 (x   0.3 incl pre)  err=5.7e-06 nT
+L= 20 double 1e-10  K= 6 M=  100000 pre= 0.012s fast=  0.180s direct=    0.12s  x   0.6 (x   0.6 incl pre)  err=6.0e-06 nT
+L= 20 double 1e-10  K= 6 M= 1000000 pre= 0.012s fast=  1.844s direct=    1.15s  x   0.6 (x   0.6 incl pre)  err=6.0e-06 nT
+L= 20 double 1e-10  K= 6 M= 2000000 pre= 0.012s fast=  3.833s direct=    2.31s  x   0.6 (x   0.6 incl pre)  err=6.0e-06 nT
+L= 20 double 1e-6   K= 4 M=   10000 pre= 0.014s fast=  0.012s direct=    0.01s  x   1.0 (x   0.4 incl pre)  err=6.6e-02 nT
+L= 20 double 1e-6   K= 4 M=  100000 pre= 0.014s fast=  0.063s direct=    0.12s  x   1.8 (x   1.5 incl pre)  err=8.8e-02 nT
+L= 20 double 1e-6   K= 4 M= 1000000 pre= 0.014s fast=  0.649s direct=    1.15s  x   1.8 (x   1.7 incl pre)  err=8.8e-02 nT
+L= 20 double 1e-6   K= 4 M= 2000000 pre= 0.014s fast=  1.348s direct=    2.31s  x   1.7 (x   1.7 incl pre)  err=8.8e-02 nT
+L= 20 single 1e-6   K= 4 M=   10000 pre= 0.015s fast=  0.009s direct=    0.01s  x   1.2 (x   0.5 incl pre)  err=1.3e-01 nT
+L= 20 single 1e-6   K= 4 M=  100000 pre= 0.015s fast=  0.055s direct=    0.12s  x   2.1 (x   1.6 incl pre)  err=1.3e-01 nT
+L= 20 single 1e-6   K= 4 M= 1000000 pre= 0.015s fast=  0.544s direct=    1.15s  x   2.1 (x   2.1 incl pre)  err=1.3e-01 nT
+L= 20 single 1e-6   K= 4 M= 2000000 pre= 0.015s fast=  1.088s direct=    2.31s  x   2.1 (x   2.1 incl pre)  err=1.3e-01 nT
+L= 30 double 1e-10  K= 7 M=   10000 pre= 0.018s fast=  0.028s direct=    0.02s  x   0.8 (x   0.5 incl pre)  err=6.2e-06 nT
+L= 30 double 1e-10  K= 7 M=  100000 pre= 0.018s fast=  0.190s direct=    0.24s  x   1.3 (x   1.1 incl pre)  err=6.3e-06 nT
+L= 30 double 1e-10  K= 7 M= 1000000 pre= 0.018s fast=  1.802s direct=    2.37s  x   1.3 (x   1.3 incl pre)  err=6.3e-06 nT
+L= 30 double 1e-10  K= 7 M= 2000000 pre= 0.018s fast=  3.628s direct=    4.75s  x   1.3 (x   1.3 incl pre)  err=6.3e-06 nT
+L= 30 double 1e-6   K= 4 M=   10000 pre= 0.020s fast=  0.012s direct=    0.02s  x   1.9 (x   0.7 incl pre)  err=9.1e-02 nT
+L= 30 double 1e-6   K= 4 M=  100000 pre= 0.020s fast=  0.072s direct=    0.24s  x   3.3 (x   2.6 incl pre)  err=9.1e-02 nT
+L= 30 double 1e-6   K= 4 M= 1000000 pre= 0.020s fast=  0.732s direct=    2.37s  x   3.2 (x   3.2 incl pre)  err=9.1e-02 nT
+L= 30 double 1e-6   K= 4 M= 2000000 pre= 0.020s fast=  1.477s direct=    4.75s  x   3.2 (x   3.2 incl pre)  err=9.1e-02 nT
+L= 30 single 1e-6   K= 4 M=   10000 pre= 0.019s fast=  0.009s direct=    0.02s  x   2.5 (x   0.8 incl pre)  err=1.3e-01 nT
+L= 30 single 1e-6   K= 4 M=  100000 pre= 0.019s fast=  0.055s direct=    0.24s  x   4.3 (x   3.2 incl pre)  err=1.3e-01 nT
+L= 30 single 1e-6   K= 4 M= 1000000 pre= 0.019s fast=  0.557s direct=    2.37s  x   4.3 (x   4.1 incl pre)  err=1.3e-01 nT
+L= 30 single 1e-6   K= 4 M= 2000000 pre= 0.019s fast=  1.042s direct=    4.75s  x   4.6 (x   4.5 incl pre)  err=1.3e-01 nT
+L= 45 double 1e-10  K= 8 M=   10000 pre= 0.041s fast=  0.052s direct=    0.06s  x   1.1 (x   0.6 incl pre)  err=9.3e-06 nT
+L= 45 double 1e-10  K= 8 M=  100000 pre= 0.041s fast=  0.205s direct=    0.56s  x   2.7 (x   2.3 incl pre)  err=9.3e-06 nT
+L= 45 double 1e-10  K= 8 M= 1000000 pre= 0.041s fast=  1.801s direct=    5.58s  x   3.1 (x   3.0 incl pre)  err=9.3e-06 nT
+L= 45 double 1e-10  K= 8 M= 2000000 pre= 0.041s fast=  3.597s direct=   11.16s  x   3.1 (x   3.1 incl pre)  err=9.3e-06 nT
+L= 45 double 1e-6   K= 4 M=   10000 pre= 0.039s fast=  0.020s direct=    0.06s  x   2.7 (x   0.9 incl pre)  err=7.9e-02 nT
+L= 45 double 1e-6   K= 4 M=  100000 pre= 0.039s fast=  0.078s direct=    0.56s  x   7.1 (x   4.8 incl pre)  err=7.9e-02 nT
+L= 45 double 1e-6   K= 4 M= 1000000 pre= 0.039s fast=  0.699s direct=    5.58s  x   8.0 (x   7.6 incl pre)  err=7.9e-02 nT
+L= 45 double 1e-6   K= 4 M= 2000000 pre= 0.039s fast=  1.351s direct=   11.16s  x   8.3 (x   8.0 incl pre)  err=7.9e-02 nT
+L= 45 single 1e-6   K= 4 M=   10000 pre= 0.059s fast=  0.027s direct=    0.06s  x   2.1 (x   0.7 incl pre)  err=2.2e-01 nT
+L= 45 single 1e-6   K= 4 M=  100000 pre= 0.059s fast=  0.072s direct=    0.56s  x   7.8 (x   4.3 incl pre)  err=2.2e-01 nT
+L= 45 single 1e-6   K= 4 M= 1000000 pre= 0.059s fast=  0.594s direct=    5.58s  x   9.4 (x   8.5 incl pre)  err=2.2e-01 nT
+L= 45 single 1e-6   K= 4 M= 2000000 pre= 0.059s fast=  1.200s direct=   11.16s  x   9.3 (x   8.9 incl pre)  err=2.2e-01 nT
+L= 70 double 1e-10  K= 9 M=   10000 pre= 0.193s fast=  0.123s direct=    0.14s  x   1.1 (x   0.4 incl pre)  err=1.2e-05 nT
+L= 70 double 1e-10  K= 9 M=  100000 pre= 0.193s fast=  0.241s direct=    1.37s  x   5.7 (x   3.2 incl pre)  err=1.2e-05 nT
+L= 70 double 1e-10  K= 9 M= 1000000 pre= 0.193s fast=  1.758s direct=   13.69s  x   7.8 (x   7.0 incl pre)  err=1.2e-05 nT
+L= 70 double 1e-10  K= 9 M= 2000000 pre= 0.193s fast=  3.329s direct=   27.38s  x   8.2 (x   7.8 incl pre)  err=1.2e-05 nT
+L= 70 double 1e-6   K= 5 M=   10000 pre= 0.113s fast=  0.063s direct=    0.14s  x   2.2 (x   0.8 incl pre)  err=8.2e-02 nT
+L= 70 double 1e-6   K= 5 M=  100000 pre= 0.113s fast=  0.123s direct=    1.37s  x  11.1 (x   5.8 incl pre)  err=8.2e-02 nT
+L= 70 double 1e-6   K= 5 M= 1000000 pre= 0.113s fast=  0.706s direct=   13.69s  x  19.4 (x  16.7 incl pre)  err=8.2e-02 nT
+L= 70 double 1e-6   K= 5 M= 2000000 pre= 0.113s fast=  1.362s direct=   27.38s  x  20.1 (x  18.6 incl pre)  err=8.2e-02 nT
+L= 70 single 1e-6   K= 5 M=   10000 pre= 0.111s fast=  0.050s direct=    0.14s  x   2.8 (x   0.9 incl pre)  err=3.6e-01 nT
+L= 70 single 1e-6   K= 5 M=  100000 pre= 0.111s fast=  0.100s direct=    1.37s  x  13.7 (x   6.5 incl pre)  err=3.6e-01 nT
+L= 70 single 1e-6   K= 5 M= 1000000 pre= 0.111s fast=  0.540s direct=   13.69s  x  25.3 (x  21.0 incl pre)  err=3.6e-01 nT
+L= 70 single 1e-6   K= 5 M= 2000000 pre= 0.111s fast=  1.068s direct=   27.38s  x  25.6 (x  23.2 incl pre)  err=3.6e-01 nT
+L=100 double 1e-10  K=10 M=   10000 pre= 0.302s fast=  0.369s direct=    0.28s  x   0.8 (x   0.4 incl pre)  err=7.1e-06 nT
+L=100 double 1e-10  K=10 M=  100000 pre= 0.302s fast=  0.493s direct=    2.81s  x   5.7 (x   3.5 incl pre)  err=7.1e-06 nT
+L=100 double 1e-10  K=10 M= 1000000 pre= 0.302s fast=  1.951s direct=   28.08s  x  14.4 (x  12.5 incl pre)  err=7.1e-06 nT
+L=100 double 1e-10  K=10 M= 2000000 pre= 0.302s fast=  3.532s direct=   56.17s  x  15.9 (x  14.7 incl pre)  err=7.1e-06 nT
+L=100 double 1e-6   K= 5 M=   10000 pre= 0.358s fast=  0.159s direct=    0.28s  x   1.8 (x   0.5 incl pre)  err=7.2e-02 nT
+L=100 double 1e-6   K= 5 M=  100000 pre= 0.358s fast=  0.256s direct=    2.81s  x  11.0 (x   4.6 incl pre)  err=7.2e-02 nT
+L=100 double 1e-6   K= 5 M= 1000000 pre= 0.358s fast=  0.816s direct=   28.08s  x  34.4 (x  23.9 incl pre)  err=7.2e-02 nT
+L=100 double 1e-6   K= 5 M= 2000000 pre= 0.358s fast=  1.477s direct=   56.17s  x  38.0 (x  30.6 incl pre)  err=7.2e-02 nT
+L=100 single 1e-6   K= 5 M=   10000 pre= 0.323s fast=  0.086s direct=    0.28s  x   3.3 (x   0.7 incl pre)  err=5.3e-01 nT
+L=100 single 1e-6   K= 5 M=  100000 pre= 0.323s fast=  0.126s direct=    2.81s  x  22.3 (x   6.2 incl pre)  err=5.3e-01 nT
+L=100 single 1e-6   K= 5 M= 1000000 pre= 0.323s fast=  0.600s direct=   28.08s  x  46.8 (x  30.4 incl pre)  err=5.3e-01 nT
+L=100 single 1e-6   K= 5 M= 2000000 pre= 0.323s fast=  1.143s direct=   56.17s  x  49.1 (x  38.3 incl pre)  err=5.3e-01 nT
+L=133 double 1e-10  K=11 M=   10000 pre= 0.588s fast=  0.499s direct=    0.50s  x   1.0 (x   0.5 incl pre)  err=7.7e-06 nT
+L=133 double 1e-10  K=11 M=  100000 pre= 0.588s fast=  0.665s direct=    5.02s  x   7.6 (x   4.0 incl pre)  err=7.7e-06 nT
+L=133 double 1e-10  K=11 M= 1000000 pre= 0.588s fast=  2.021s direct=   50.19s  x  24.8 (x  19.2 incl pre)  err=7.7e-06 nT
+L=133 double 1e-10  K=11 M= 2000000 pre= 0.588s fast=  3.751s direct=  100.39s  x  26.8 (x  23.1 incl pre)  err=7.7e-06 nT
+L=133 double 1e-6   K= 6 M=   10000 pre= 0.559s fast=  0.352s direct=    0.50s  x   1.4 (x   0.6 incl pre)  err=1.0e-01 nT
+L=133 double 1e-6   K= 6 M=  100000 pre= 0.559s fast=  0.396s direct=    5.02s  x  12.7 (x   5.3 incl pre)  err=1.0e-01 nT
+L=133 double 1e-6   K= 6 M= 1000000 pre= 0.559s fast=  1.011s direct=   50.19s  x  49.6 (x  32.0 incl pre)  err=1.0e-01 nT
+L=133 double 1e-6   K= 6 M= 2000000 pre= 0.559s fast=  1.677s direct=  100.39s  x  59.9 (x  44.9 incl pre)  err=1.0e-01 nT
+L=133 single 1e-6   K= 6 M=   10000 pre= 0.569s fast=  0.273s direct=    0.50s  x   1.8 (x   0.6 incl pre)  err=6.5e-01 nT
+L=133 single 1e-6   K= 6 M=  100000 pre= 0.569s fast=  0.293s direct=    5.02s  x  17.2 (x   5.8 incl pre)  err=6.5e-01 nT
+L=133 single 1e-6   K= 6 M= 1000000 pre= 0.569s fast=  0.804s direct=   50.19s  x  62.4 (x  36.5 incl pre)  err=6.5e-01 nT
+L=133 single 1e-6   K= 6 M= 2000000 pre= 0.569s fast=  1.345s direct=  100.39s  x  74.6 (x  52.4 incl pre)  err=6.5e-01 nT
+L=185 double 1e-10  K=12 M=   10000 pre= 1.239s fast=  1.332s direct=    1.05s  x   0.8 (x   0.4 incl pre)  err=1.1e-05 nT
+L=185 double 1e-10  K=12 M=  100000 pre= 1.239s fast=  1.459s direct=   10.51s  x   7.2 (x   3.9 incl pre)  err=1.1e-05 nT
+L=185 double 1e-10  K=12 M= 1000000 pre= 1.239s fast=  2.972s direct=  105.14s  x  35.4 (x  25.0 incl pre)  err=1.1e-05 nT
+L=185 double 1e-10  K=12 M= 2000000 pre= 1.239s fast=  4.619s direct=  210.29s  x  45.5 (x  35.9 incl pre)  err=1.1e-05 nT
+L=185 double 1e-6   K= 6 M=   10000 pre= 1.040s fast=  0.634s direct=    1.05s  x   1.7 (x   0.6 incl pre)  err=5.8e-02 nT
+L=185 double 1e-6   K= 6 M=  100000 pre= 1.040s fast=  0.744s direct=   10.51s  x  14.1 (x   5.9 incl pre)  err=5.8e-02 nT
+L=185 double 1e-6   K= 6 M= 1000000 pre= 1.040s fast=  1.405s direct=  105.14s  x  74.9 (x  43.0 incl pre)  err=5.8e-02 nT
+L=185 double 1e-6   K= 6 M= 2000000 pre= 1.040s fast=  2.040s direct=  210.29s  x 103.1 (x  68.3 incl pre)  err=5.8e-02 nT
+L=185 single 1e-6   K= 6 M=   10000 pre= 1.078s fast=  0.488s direct=    1.05s  x   2.2 (x   0.7 incl pre)  err=7.2e-01 nT
+L=185 single 1e-6   K= 6 M=  100000 pre= 1.078s fast=  0.562s direct=   10.51s  x  18.7 (x   6.4 incl pre)  err=7.2e-01 nT
+L=185 single 1e-6   K= 6 M= 1000000 pre= 1.078s fast=  1.126s direct=  105.14s  x  93.4 (x  47.7 incl pre)  err=7.2e-01 nT
+L=185 single 1e-6   K= 6 M= 2000000 pre= 1.078s fast=  1.718s direct=  210.29s  x 122.4 (x  75.2 incl pre)  err=7.2e-01 nT

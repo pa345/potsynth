@@ -1,0 +1,11 @@
+\begin{table}[!htbp]\centering\small
+\caption{Breakdown of one evaluation for $M=10^6$ points (3 components, $\sigma=2$, 2 cores). FFT = deconvolution plus FFT
+(measured with $10$ points); interpolation = the remainder of the NUFFT time. The interpolation cost per point depends on
+$w$ only, not on $L$.}\label{tab:breakdown}
+\begin{tabular}{rrrrcrrrr}\toprule
+$L$&$\varepsilon$&$w$&$K$&modes $(\psi,\theta,\varphi)$&sort (s)&FFT (s)&interp.\ (s)&$\mu$s/point\\\midrule
+13 & $10^{-6}$ & 7 & 4 & $9\times27\times14$ & 0.012 & 0.008 & 0.598 & 0.60\\
+13 & $10^{-10}$ & 11 & 6 & $13\times27\times14$ & 0.011 & 0.005 & 1.960 & 1.96\\
+185 & $10^{-6}$ & 7 & 6 & $13\times371\times186$ & 0.037 & 0.635 & 0.617 & 0.62\\
+185 & $10^{-10}$ & 11 & 12 & $25\times371\times186$ & 0.021 & 1.305 & 1.557 & 1.56\\
+\bottomrule\end{tabular}\end{table}
