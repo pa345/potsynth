@@ -11,21 +11,21 @@ Model and channels
 ==================
 
 The library works with an internal potential expanded in 4-:math:`\pi` fully
-normalized associated Legendre functions :math:`\bar{P}_n^m`, with coefficients
-:math:`C_{nm}, S_{nm}`. Every quantity it computes has the form
+normalized associated Legendre functions :math:`\bar{P}_l^m`, with coefficients
+:math:`C_{lm}, S_{lm}`. Every quantity it computes has the form
 
 .. math::
    :label: channel
 
-   f_c(r,\theta,\phi) = \sum_{n=n_0}^{L} \sum_{m=0}^{\min(n,M)}
-   \rho_c(n)\, u^{n+p_c}\; T_c\!\left[\bar{P}_n^m(\cos\theta)\right]\;
-   D_c\!\left[ C_{nm} \cos m\phi + S_{nm} \sin m\phi \right],
+   f_c(r,\theta,\phi) = \sum_{l=l_{min}}^{L} \sum_{m=0}^{\min(l,M)}
+   \rho_c(l)\, u^{l+p_c}\; T_c\!\left[\bar{P}_l^m(\cos\theta)\right]\;
+   D_c\!\left[ C_{lm} \cos m\phi + S_{lm} \sin m\phi \right],
    \qquad u = \frac{a}{r},
 
-where :math:`n_0` and :math:`L` are the minimum and maximum degree, :math:`M` is the
+where :math:`l_{min}` and :math:`L` are the minimum and maximum degree, :math:`M` is the
 maximum order, and :math:`c` labels a *channel*. Each channel is defined by:
 
-- a per-degree factor :math:`\rho_c(n)`;
+- a per-degree factor :math:`\rho_c(l)`;
 - a radial power offset :math:`p_c`;
 - an operator :math:`T_c` in colatitude, one of :math:`\bar{P}`,
   :math:`d\bar{P}/d\theta` or :math:`\bar{P}/\sin\theta`;
@@ -36,12 +36,12 @@ For example, the magnetic field :math:`\mathbf{B} = -\nabla V` of
 
 .. math::
 
-   B_r &= \sum (n+1)\, u^{n+2}\, \bar{P}_n^m\, [\ldots], \\
-   B_\theta &= -\sum u^{n+2}\, \frac{d\bar{P}_n^m}{d\theta}\, [\ldots], \\
-   B_\phi &= -\sum u^{n+2}\, \frac{\bar{P}_n^m}{\sin\theta}\, \frac{\partial}{\partial\phi}[\ldots],
+   B_r &= \sum (l+1)\, u^{l+2}\, \bar{P}_l^m\, [\ldots], \\
+   B_\theta &= -\sum u^{l+2}\, \frac{d\bar{P}_l^m}{d\theta}\, [\ldots], \\
+   B_\phi &= -\sum u^{l+2}\, \frac{\bar{P}_l^m}{\sin\theta}\, \frac{\partial}{\partial\phi}[\ldots],
 
-with :math:`[\ldots] = C_{nm}\cos m\phi + S_{nm}\sin m\phi` and
-:math:`C_{nm} = g_n^m/\sqrt{2n+1}`, :math:`S_{nm} = h_n^m/\sqrt{2n+1}` (conversion from
+with :math:`[\ldots] = C_{lm}\cos m\phi + S_{lm}\sin m\phi` and
+:math:`C_{lm} = g_l^m/\sqrt{2l+1}`, :math:`S_{lm} = h_l^m/\sqrt{2l+1}` (conversion from
 Schmidt to 4-:math:`\pi` normalization). A gravity front-end will use the same
 mechanism for the potential, the gravity disturbance and the gradients.
 
@@ -72,15 +72,15 @@ written for this specific structure.
 Step 1: radial separation
 =========================
 
-The radius enters :eq:`channel` only through the powers :math:`u^{n+p}`. All points
+The radius enters :eq:`channel` only through the powers :math:`u^{l+p}`. All points
 lie in a shell :math:`r_{\min} \le r \le r_{\max}`, so :math:`u` lies in an interval
 :math:`[u_0, u_1] = [a/r_{\max}, a/r_{\min}]`. On a narrow interval the functions
-:math:`u^{n+p}` for different :math:`n` look very much alike, so they are numerically
+:math:`u^{l+p}` for different :math:`l` look very much alike, so they are numerically
 low-rank:
 
 .. math::
 
-   u^{n+p_c} \approx \sum_{i=1}^{\rho} \beta_{c,i,n}\, b_i(u),
+   u^{l+p_c} \approx \sum_{i=1}^{\rho} \beta_{c,i,l}\, b_i(u),
    \qquad u \in [u_0, u_1].
 
 Substituting this into :eq:`channel` separates the radius from the angles:
@@ -90,7 +90,7 @@ Substituting this into :eq:`channel` separates the radius from the angles:
 
    f_c(r,\theta,\phi) \approx \sum_{i=1}^{\rho} b_i(u)\, G_{c,i}(\theta,\phi),
    \qquad
-   G_{c,i} = \sum_{n,m} \beta_{c,i,n}\, \rho_c(n)\, T_c[\bar{P}_n^m]\, D_c[\ldots].
+   G_{c,i} = \sum_{l,m} \beta_{c,i,l}\, \rho_c(l)\, T_c[\bar{P}_l^m]\, D_c[\ldots].
 
 The optimal basis comes from an SVD. The functions are sampled at the :math:`K+1`
 Chebyshev--Lobatto points :math:`u_j = u_c + u_d \cos(\pi j/K)`, where
@@ -99,15 +99,15 @@ each function's contribution to the field, form the matrix
 
 .. math::
 
-   X_{j,(p,n)} = \sqrt{c_j}\; w_{p,n}\; u_j^{n+p}, \qquad
-   w_{p,n} = \max_{c:\,p_c = p} |\rho_c(n)|\, \tau_c(n)\, \|C_n\|.
+   X_{j,(p,l)} = \sqrt{c_j}\; w_{p,l}\; u_j^{l+p}, \qquad
+   w_{p,l} = \max_{c:\,p_c = p} |\rho_c(l)|\, \tau_c(l)\, \|C_l\|.
 
 Here:
 
 - :math:`c_j` are the Lobatto weights: 1/2 at the end points and 1 otherwise.
-- :math:`\|C_n\|^2 = \sum_m (C_{nm}^2 + S_{nm}^2)`.
-- :math:`\tau_c(n)` is the r.m.s. size of the operator :math:`T_c D_c`: 1 for
-  :math:`\bar{P}` and :math:`\sqrt{n(n+1)/2}` for the horizontal derivatives.
+- :math:`\|C_l\|^2 = \sum_m (C_{lm}^2 + S_{lm}^2)`.
+- :math:`\tau_c(l)` is the r.m.s. size of the operator :math:`T_c D_c`: 1 for
+  :math:`\bar{P}` and :math:`\sqrt{l(l+1)/2}` for the horizontal derivatives.
 
 :math:`K` is increased until the Chebyshev series of all functions are resolved, then
 reduced to the smallest degree whose truncation tail stays below tolerance.
@@ -120,7 +120,7 @@ by default. Then:
 .. math::
 
    b_i(u_j) = U_{ji}/\sqrt{c_j}, \qquad
-   \beta_{c,i,n} = \sum_j U_{ji}\sqrt{c_j}\, u_j^{n+p_c},
+   \beta_{c,i,l} = \sum_j U_{ji}\sqrt{c_j}\, u_j^{l+p_c},
 
 The second formula is the projection onto the basis in the discrete Chebyshev inner
 product. Each :math:`b_i` is stored as a Chebyshev series in
@@ -138,10 +138,10 @@ Step 2: exact Fourier series on the doubled sphere
 Colatitude only runs from 0 to :math:`\pi`. Extend it to a full circle,
 :math:`\theta \in [0, 2\pi)`, keeping :math:`\cos\theta` and :math:`\sin\theta` as usual
 (so :math:`\sin\theta < 0` for :math:`\theta > \pi`). This is the *doubled sphere*. On
-it, :math:`\bar{P}_n^m(\cos\theta)` and :math:`d\bar{P}_n^m/d\theta` are trigonometric
-polynomials of degree at most :math:`n`, and for :math:`m \ge 1` so is
-:math:`\bar{P}_n^m/\sin\theta`, of degree at most :math:`n-1`. The reason is that
-:math:`\bar{P}_n^m = \sin^m\theta\, q(\cos\theta)`, where :math:`q` is a polynomial. In
+it, :math:`\bar{P}_l^m(\cos\theta)` and :math:`d\bar{P}_l^m/d\theta` are trigonometric
+polynomials of degree at most :math:`l`, and for :math:`m \ge 1` so is
+:math:`\bar{P}_l^m/\sin\theta`, of degree at most :math:`l-1`. The reason is that
+:math:`\bar{P}_l^m = \sin^m\theta\, q(\cos\theta)`, where :math:`q` is a polynomial. In
 particular, :math:`\bar{P}/\sin\theta` has no singularity at the poles. Every angular
 function in :eq:`separated` is therefore an **exact** 2-D trigonometric polynomial of
 degree at most :math:`L`:
@@ -153,14 +153,14 @@ degree at most :math:`L`:
 
 For each order :math:`m`, the functions :math:`H_m = S_A - i S_B` are evaluated at
 :math:`N_\theta \ge 2L+2` equally spaced colatitudes :math:`\theta_j = (j+\tfrac12)\,
-2\pi/N_\theta`. Here :math:`S_A` and :math:`S_B` are the sums over :math:`n` that
+2\pi/N_\theta`. Here :math:`S_A` and :math:`S_B` are the sums over :math:`l` that
 multiply :math:`\cos m\phi` and :math:`\sin m\phi`. The half-step shift keeps the nodes
 off the poles. One FFT per channel then gives the coefficients
 :math:`\hat{H}_m[p]` *exactly*. This step makes no approximation.
 
 **Symmetries.** :math:`N_\theta` is a multiple of 4, and the Legendre recursion runs
 only on the nodes in :math:`(0, \pi/2)`. The other three quadrants follow from
-symmetry. The sums over :math:`n` are split by the parity of :math:`n-m` into
+symmetry. The sums over :math:`l` are split by the parity of :math:`l-m` into
 :math:`E` (even) and :math:`O` (odd). Then:
 
 .. list-table::
@@ -187,11 +187,11 @@ with :math:`\sigma = (-1)^m` for :math:`\bar{P}`, and :math:`\sigma = (-1)^{m-1}
 by a factor of four.
 
 **Fused accumulation.** The Legendre values are never stored. In blocks of 8 nodes,
-each column recursion (fixed :math:`m`, increasing :math:`n`) is consumed immediately
+each column recursion (fixed :math:`m`, increasing :math:`l`) is consumed immediately
 by a register-blocked kernel. The kernel accumulates the even and odd sums of every
 (channel, radial function) pair with precomputed weights
-:math:`\beta_{c,i,n}\rho_c(n)C_{nm}`. Coefficients and recursion factors are stored in
-*M-major* order (fixed :math:`m` contiguous in :math:`n`), which is the order the
+:math:`\beta_{c,i,l}\rho_c(l)C_{lm}`. Coefficients and recursion factors are stored in
+*M-major* order (fixed :math:`m` contiguous in :math:`l`), which is the order the
 recursion reads them in. The orders :math:`m` are distributed over threads.
 
 Step 3: pre-sharpening and the fine grid
@@ -199,15 +199,15 @@ Step 3: pre-sharpening and the fine grid
 
 Consider a 1-D trigonometric polynomial :math:`f(x) = \sum_{|k|\le N} c_k e^{ikx}` that
 has to be evaluated at arbitrary points. Choose a short window :math:`\phi(x)` that
-covers :math:`w` grid steps of a fine grid :math:`x_l = lh`, :math:`h = 2\pi/n_f`.
+covers :math:`w` grid steps of a fine grid :math:`x_\nu = \nu h`, :math:`h = 2\pi/n_f`.
 Instead of the samples of :math:`f`, store the *pre-sharpened* values
 
 .. math::
 
-   g_l = \sum_{|k|\le N} c_k\, \frac{h}{\hat{\phi}(k)}\, e^{ikx_l},
+   g_\nu = \sum_{|k|\le N} c_k\, \frac{h}{\hat{\phi}(k)}\, e^{ikx_\nu},
    \qquad \hat{\phi}(k) = \int \phi(x)\, e^{-ikx}\, dx.
 
-The window sum :math:`\tilde{f}(x) = \sum_l g_l\, \phi(x - x_l)` involves only the
+The window sum :math:`\tilde{f}(x) = \sum_\nu g_\nu\, \phi(x - x_\nu)` involves only the
 :math:`w` grid points near :math:`x`. By the Poisson summation formula,
 
 .. math::
@@ -247,7 +247,7 @@ Step 4: storing only what is needed
 ===================================
 
 Points have :math:`\theta \in [0,\pi]`, and a window reaches :math:`w/2` grid steps
-either side. So only the rows :math:`-w/2 - 1 \lesssim l \lesssim \pi/h_1 + w/2 + 1`
+either side. So only the rows :math:`-w/2 - 1 \lesssim \nu \lesssim \pi/h_1 + w/2 + 1`
 are stored, about half the doubled-sphere grid plus a margin.
 
 - **Rows below 0 and above** :math:`\pi`: these hold values from the mirror half of the
@@ -304,8 +304,8 @@ The direct method
 The direct method evaluates :eq:`channel` point by point:
 
 - **Blocks of points.** Points are taken 8 at a time. For each order :math:`m`, a single
-  pass over :math:`n` runs the Legendre column recursion (vectorized across 4 points),
-  multiplies by the running radial factor :math:`u^n`, and adds the term to every
+  pass over :math:`l` runs the Legendre column recursion (vectorized across 4 points),
+  multiplies by the running radial factor :math:`u^l`, and adds the term to every
   channel. All accumulators stay in vector registers. Specialized kernels exist for
   1--6 channels, with a generic version otherwise.
 - **Quantities carried across orders.** :math:`\sin^{m-1}\theta` (as mantissa and
@@ -323,16 +323,16 @@ Featherstone (2002), with the 4-:math:`\pi` recurrence factors
 
 .. math::
 
-   a_n^m = \sqrt{\frac{(2n+1)(2n-1)}{(n+m)(n-m)}}, \quad
-   b_n^m = -\sqrt{\frac{(n+m-1)(n-m-1)(2n+1)}{(n+m)(n-m)(2n-3)}}, \quad
+   a_l^m = \sqrt{\frac{(2l+1)(2l-1)}{(l+m)(l-m)}}, \quad
+   b_l^m = -\sqrt{\frac{(l+m-1)(l-m-1)(2l+1)}{(l+m)(l-m)(2l-3)}}, \quad
    c_m = \sqrt{2m+3}.
 
 For :math:`m \ge 1` the recursion runs on the *scaled, pole-safe* quantities
 
 .. math::
 
-   Q_n^m = 2^{-s_m}\, \frac{\bar{P}_n^m}{\sin^m\theta}, \qquad
-   E_n^m = 2^{-s_m}\, \frac{d\bar{P}_n^m/d\theta}{\sin^{m-1}\theta}.
+   Q_l^m = 2^{-s_m}\, \frac{\bar{P}_l^m}{\sin^m\theta}, \qquad
+   E_l^m = 2^{-s_m}\, \frac{d\bar{P}_l^m/d\theta}{\sin^{m-1}\theta}.
 
 Both are polynomials in :math:`x = \cos\theta`:
 
@@ -340,27 +340,27 @@ Both are polynomials in :math:`x = \cos\theta`:
 
    Q_m^m &= 2^{-s_m} \prod_{k=1}^{m} d_k, \qquad E_m^m = m\, x\, Q_m^m, \\
    Q_{m+1}^m &= c_m\, x\, Q_m^m, \qquad E_{m+1}^m = c_m \left(x E_m^m - s^2 Q_m^m\right), \\
-   Q_n^m &= a_n^m\, x\, Q_{n-1}^m + b_n^m\, Q_{n-2}^m, \qquad
-   E_n^m = a_n^m \left(x E_{n-1}^m - s^2 Q_{n-1}^m\right) + b_n^m E_{n-2}^m,
+   Q_l^m &= a_l^m\, x\, Q_{l-1}^m + b_l^m\, Q_{l-2}^m, \qquad
+   E_l^m = a_l^m \left(x E_{l-1}^m - s^2 Q_{l-1}^m\right) + b_l^m E_{l-2}^m,
 
 with :math:`s = \sin\theta`, :math:`d_1 = \sqrt{3}` and :math:`d_k = \sqrt{1 + 1/(2k)}`.
 No step divides by :math:`\sin\theta`. Then
 
 .. math::
 
-   \bar{P}_n^m = 2^{s_m} s^m Q_n^m, \qquad
-   \frac{\bar{P}_n^m}{\sin\theta} = 2^{s_m} s^{m-1} Q_n^m, \qquad
-   \frac{d\bar{P}_n^m}{d\theta} = 2^{s_m} s^{m-1} E_n^m.
+   \bar{P}_l^m = 2^{s_m} s^m Q_l^m, \qquad
+   \frac{\bar{P}_l^m}{\sin\theta} = 2^{s_m} s^{m-1} Q_l^m, \qquad
+   \frac{d\bar{P}_l^m}{d\theta} = 2^{s_m} s^{m-1} E_l^m.
 
 The powers of :math:`s` are applied as a mantissa and exponent, so they never
 underflow or overflow. Only :math:`s^2` enters the recursion, so it works unchanged on
 the doubled sphere (:math:`s < 0`) and at the poles (:math:`s = 0`).
 
-**Scaling.** :math:`Q_n^m` is largest at the poles, where
+**Scaling.** :math:`Q_l^m` is largest at the poles, where
 
 .. math::
 
-   Q_n^m(\pm 1) = 2^{-s_m} \sqrt{2(2n+1)}\, \frac{\sqrt{(n+m)!/(n-m)!}}{2^m\, m!}.
+   Q_l^m(\pm 1) = 2^{-s_m} \sqrt{2(2l+1)}\, \frac{\sqrt{(l+m)!/(l-m)!}}{2^m\, m!}.
 
 The exponent :math:`s_m \ge 0` is the smallest power of two that keeps all values
 below :math:`2^{960}`. Most columns need no scaling at all: none do below
@@ -376,7 +376,7 @@ degrees above about 1900, whole columns come out zero or wrong. For example, at
 give the correct value.
 
 **Accuracy near the poles.** Close to :math:`x = \pm 1` the three-term recursion
-behaves like :math:`P_n \approx 2P_{n-1} - P_{n-2}`, so rounding errors grow linearly
+behaves like :math:`P_l \approx 2P_{l-1} - P_{l-2}`, so rounding errors grow linearly
 at each step. The relative error is then about :math:`\varepsilon L^2`, roughly
 :math:`10^{-12}` at :math:`L = 185` and :math:`10^{-10}` at :math:`L = 2190`. This
 holds for any implementation of the standard recursion, including GSL.

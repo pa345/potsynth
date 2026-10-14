@@ -10,12 +10,12 @@ The Earth's internal magnetic field is usually described by a scalar potential,
 .. math::
    :label: mag_potential
 
-   V(r,\theta,\phi) = a \sum_{n=1}^{L} \sum_{m=0}^{n} \left( \frac{a}{r} \right)^{n+1}
-   \left[ g_n^m \cos m\phi + h_n^m \sin m\phi \right] P_n^m(\cos\theta),
+   V(r,\theta,\phi) = a \sum_{l=1}^{L} \sum_{m=0}^{l} \left( \frac{a}{r} \right)^{l+1}
+   \left[ g_l^m \cos m\phi + h_l^m \sin m\phi \right] P_l^m(\cos\theta),
 
 with :math:`\mathbf{B} = -\nabla V`. Here :math:`(r,\theta,\phi)` are geocentric radius,
 colatitude and longitude, and :math:`a = 6371.2` km is the reference radius. The
-:math:`g_n^m, h_n^m` are the Gauss coefficients, and the :math:`P_n^m` are the Schmidt
+:math:`g_l^m, h_l^m` are the Gauss coefficients, and the :math:`P_l^m` are the Schmidt
 semi-normalized associated Legendre functions. Gravity models have the same structure,
 with a different normalization and prefactor.
 
@@ -35,7 +35,7 @@ select one:
 **Direct method.**
   A point-by-point sum, optimized as far as possible:
 
-  - The Legendre recursion and the sums over :math:`n` are done in a single pass,
+  - The Legendre recursion and the sums over :math:`l` are done in a single pass,
     vectorized across points, with the accumulators held in vector registers.
   - No table of Legendre functions is stored.
   - It is fastest for low-degree models, such as the IGRF or the CHAOS core field.
@@ -52,7 +52,7 @@ select one:
 Both methods are:
 
 - **Exact at the poles.** They evaluate correctly at every point on the sphere,
-  including both poles. :math:`P_n^m/\sin\theta` and :math:`dP_n^m/d\theta` are never
+  including both poles. :math:`P_l^m/\sin\theta` and :math:`dP_l^m/d\theta` are never
   computed by dividing by :math:`\sin\theta`.
 - **Double precision throughout,** using the Holmes & Featherstone (2002) recursions
   with exact power-of-two scaling. They are valid up to degree :math:`L = 2800`.

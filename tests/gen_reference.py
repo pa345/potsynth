@@ -24,20 +24,20 @@ A = 6371.2
 
 
 def model(L, seed):
-    """Core-like spectrum for n <= 13 (dipole ~ -29000 nT), flat lithospheric spectrum above."""
+    """Core-like spectrum for l <= 13 (dipole ~ -29000 nT), flat lithospheric spectrum above."""
     rng = np.random.default_rng(seed)
     g = np.zeros((L + 1, L + 1))
     h = np.zeros((L + 1, L + 1))
-    for n in range(1, L + 1):
-        if n <= 13:
-            Rn = 9e8 * (50.0 / 9e8) ** ((n - 1) / 12.0)
-        elif n <= 15:
-            Rn = 5.0
+    for l in range(1, L + 1):
+        if l <= 13:
+            Rl = 9e8 * (50.0 / 9e8) ** ((l - 1) / 12.0)
+        elif l <= 15:
+            Rl = 5.0
         else:
-            Rn = 0.5
-        sd = np.sqrt(Rn / ((n + 1) * (2 * n + 1)))
-        g[n, : n + 1] = rng.normal(0, sd, n + 1)
-        h[n, 1 : n + 1] = rng.normal(0, sd, n)
+            Rl = 0.5
+        sd = np.sqrt(Rl / ((l + 1) * (2 * l + 1)))
+        g[l, : l + 1] = rng.normal(0, sd, l + 1)
+        h[l, 1 : l + 1] = rng.normal(0, sd, l)
     g[1, 0] = -29000.0
     return g, h
 
@@ -45,9 +45,9 @@ def model(L, seed):
 def green2_vector(g, h):
     L = g.shape[0] - 1
     out = []
-    for n in range(1, L + 1):
-        for m in range(-n, n + 1):
-            out.append(h[n, -m] if m < 0 else g[n, m])
+    for l in range(1, L + 1):
+        for m in range(-l, l + 1):
+            out.append(h[l, -m] if m < 0 else g[l, m])
     return np.array(out)
 
 

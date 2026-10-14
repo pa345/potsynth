@@ -55,11 +55,11 @@ def test_api():
     # (g, h) arrays give the same model as the vector
     g = np.zeros((L + 1, L + 1))
     h = np.zeros((L + 1, L + 1))
-    for n in range(1, L + 1):
-        for k in range(n + 1):
-            g[n, k] = gh[potsynth.idx(n, k, 1, L)]
+    for l in range(1, L + 1):
+        for k in range(l + 1):
+            g[l, k] = gh[potsynth.idx(l, k, 1, L)]
             if k:
-                h[n, k] = gh[potsynth.idx(n, -k, 1, L)]
+                h[l, k] = gh[potsynth.idx(l, -k, 1, L)]
     m2 = potsynth.MagModel((g, h), a=a, rmin=rmin, rmax=rmax, method="fast")
     check(np.array_equal(np.array(m(r, th, ph)), np.array(m2(r, th, ph))), "(g, h) input differs")
 

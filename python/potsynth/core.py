@@ -43,19 +43,19 @@ def nlm(lmin, lmax, mmax=None):
     return int(lib.potsynth_nlm(lmin, lmax, mmax))
 
 
-def idx(n, m, lmin, mmax):
-    """Index of coefficient (n, m) in a coefficient vector (mainlib green2 layout):
+def idx(l, m, lmin, mmax):
+    """Index of coefficient (l, m) in a coefficient vector (mainlib green2 layout):
     m >= 0 indexes the cosine coefficient, m < 0 the sine coefficient of order |m|."""
     if lmin <= mmax:
-        if n <= mmax:
-            return n * (n + 1) + m - lmin * lmin
-        return n * (2 * mmax + 1) + m - mmax * mmax - lmin * lmin
-    return (n - lmin) * (2 * mmax + 1) + m + mmax
+        if l <= mmax:
+            return l * (l + 1) + m - lmin * lmin
+        return l * (2 * mmax + 1) + m - mmax * mmax - lmin * lmin
+    return (l - lmin) * (2 * mmax + 1) + m + mmax
 
 
 def coef_vector(C, S, lmin=None, lmax=None, mmax=None):
-    """Build a coefficient vector from arrays C[n, m] (cosine) and S[n, m] (sine),
-    for example Gauss coefficients g[n, m], h[n, m].
+    """Build a coefficient vector from arrays C[l, m] (cosine) and S[l, m] (sine),
+    for example Gauss coefficients g[l, m], h[l, m].
 
     lmin defaults to 0 if C[0, 0] != 0 and to 1 otherwise; lmax to the largest
     degree in the arrays; mmax to lmax.
@@ -67,12 +67,12 @@ def coef_vector(C, S, lmin=None, lmax=None, mmax=None):
     lmin = (0 if C[0, 0] != 0.0 else 1) if lmin is None else lmin
     mmax = lmax if mmax is None else mmax
     out = np.zeros(nlm(lmin, lmax, mmax))
-    for n in range(lmin, lmax + 1):
-        M = min(n, mmax)
-        out[idx(n, 0, lmin, mmax)] = C[n, 0]
+    for l in range(lmin, lmax + 1):
+        M = min(l, mmax)
+        out[idx(l, 0, lmin, mmax)] = C[l, 0]
         for m in range(1, M + 1):
-            out[idx(n, m, lmin, mmax)] = C[n, m]
-            out[idx(n, -m, lmin, mmax)] = S[n, m]
+            out[idx(l, m, lmin, mmax)] = C[l, m]
+            out[idx(l, -m, lmin, mmax)] = S[l, m]
     return out
 
 
@@ -80,8 +80,8 @@ def coef_vector(C, S, lmin=None, lmax=None, mmax=None):
 class Channel:
     """One output quantity of the core model,
 
-        f(r, theta, phi) = sum_{n,m} rfac[n] (a/r)^(n + rpow) T[Pbar_n^m(cos theta)]
-                                     (d/dphi)^dphi [C_nm cos(m phi) + S_nm sin(m phi)]
+        f(r, theta, phi) = sum_{l,m} rfac[l] (a/r)^(l + rpow) T[Pbar_l^m(cos theta)]
+                                     (d/dphi)^dphi [C_lm cos(m phi) + S_lm sin(m phi)]
 
     theta: "P" (Pbar), "dP" (d Pbar / d theta) or "Psin" (Pbar / sin theta, m >= 1).
     rfac: per-degree factors, length lmax + 1, or None for 1.

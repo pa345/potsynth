@@ -16,7 +16,7 @@ class MagModel(_Evaluator):
     Parameters
     ----------
     gh : Gauss coefficients in nT, either a 1-D vector in the layout of idx()
-         (g at m >= 0, h at m < 0), or a tuple (g, h) of 2-D arrays g[n, m], h[n, m]
+         (g at m >= 0, h at m < 0), or a tuple (g, h) of 2-D arrays g[l, m], h[l, m]
     lmax : maximum degree (default: from gh)
     lmin : minimum degree (default 1)
     mmax : maximum order (default lmax)

@@ -29,7 +29,7 @@ Magnetic models
 
    :param gh: Gauss coefficients in nT, in one of two forms:
 
-      - a tuple ``(g, h)`` of 2-D arrays indexed ``[n, m]``; or
+      - a tuple ``(g, h)`` of 2-D arrays indexed ``[l, m]``; or
       - a 1-D vector in the layout of :py:func:`idx` (``g`` at :math:`m \ge 0`, ``h``
         at :math:`m < 0`).
    :param int lmax: maximum degree. By default it is taken from ``gh``.
@@ -83,11 +83,11 @@ Generic models
    One output quantity of a generic model, as in :eq:`channel`.
 
    :param int rpow: radial power offset :math:`p`; the term carries
-      :math:`(a/r)^{n+p}`
+      :math:`(a/r)^{l+p}`
    :param str theta: the operator in colatitude: ``"P"``, ``"dP"``
       (:math:`d\bar{P}/d\theta`) or ``"Psin"`` (:math:`\bar{P}/\sin\theta`)
    :param int dphi: 1 to apply :math:`\partial/\partial\phi`
-   :param rfac: per-degree factors :math:`\rho(n)`, length :math:`L+1`, or ``None``
+   :param rfac: per-degree factors :math:`\rho(l)`, length :math:`L+1`, or ``None``
       for 1
 
 .. py:class:: Model(coef, lmin, lmax, channels, a, rmin=0.0, rmax=0.0, mmax=None, eps=1e-10, method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0)
@@ -103,9 +103,9 @@ Generic models
 
    .. code-block:: python
 
-      n = np.arange(L + 1)
-      chans = [potsynth.Channel(rpow=1),                        # sum (a/r)^(n+1) ...
-               potsynth.Channel(rpow=2, rfac=n + 1.0)]          # -dV/dr
+      l = np.arange(L + 1)
+      chans = [potsynth.Channel(rpow=1),                        # sum (a/r)^(l+1) ...
+               potsynth.Channel(rpow=2, rfac=l + 1.0)]          # -dV/dr
       model = potsynth.Model(coef, 0, L, chans, a, rmin, rmax)
       V, dV = model(r, theta, phi)
 
@@ -114,13 +114,13 @@ Coefficients
 
 .. py:function:: coef_vector(C, S, lmin=None, lmax=None, mmax=None)
 
-   Builds a coefficient vector from 2-D arrays ``C[n, m]`` (cosine) and ``S[n, m]``
+   Builds a coefficient vector from 2-D arrays ``C[l, m]`` (cosine) and ``S[l, m]``
    (sine). ``S`` may be ``None``. By default ``lmin`` is 0 if ``C[0, 0]`` is nonzero and
    1 otherwise.
 
-.. py:function:: idx(n, m, lmin, mmax)
+.. py:function:: idx(l, m, lmin, mmax)
 
-   Index of coefficient :math:`(n, m)` in a coefficient vector. :math:`m < 0` gives the
+   Index of coefficient :math:`(l, m)` in a coefficient vector. :math:`m < 0` gives the
    sine coefficient of order :math:`|m|`. This is the same as :c:macro:`potsynth_idx`.
 
 .. py:function:: nlm(lmin, lmax, mmax=None)

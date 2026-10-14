@@ -19,14 +19,14 @@ a = 6371.2                    # reference radius (km)
 rmin, rmax = a + 250.0, a + 800.0
 rng = np.random.default_rng(1)
 
-# 1. Gauss coefficients g[n, m], h[n, m] in nT
+# 1. Gauss coefficients g[l, m], h[l, m] in nT
 g = np.zeros((L + 1, L + 1))
 h = np.zeros((L + 1, L + 1))
-for n in range(1, L + 1):
-    Rn = 9e8 * (50.0 / 9e8) ** ((n - 1) / 12.0) if n <= 13 else 0.5
-    sd = np.sqrt(Rn / ((n + 1) * (2 * n + 1)))
-    g[n, : n + 1] = rng.normal(0.0, sd, n + 1)
-    h[n, 1 : n + 1] = rng.normal(0.0, sd, n)
+for l in range(1, L + 1):
+    Rl = 9e8 * (50.0 / 9e8) ** ((l - 1) / 12.0) if l <= 13 else 0.5
+    sd = np.sqrt(Rl / ((l + 1) * (2 * l + 1)))
+    g[l, : l + 1] = rng.normal(0.0, sd, l + 1)
+    h[l, 1 : l + 1] = rng.normal(0.0, sd, l)
 g[1, 0] = -29400.0
 
 # 2. evaluation points: random in the 250-800 km shell
