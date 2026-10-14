@@ -195,7 +195,7 @@ Generic models
    :param str theta: the operator in colatitude: ``"P"``, ``"dP"``
       (:math:`d\bar{P}/d\theta`), ``"Psin"`` (:math:`\bar{P}/\sin\theta`), or
       ``"S2A"``, ``"S2B"`` (the second-derivative operators of the gradient tensor, see
-      :c:macro:`POTSYNTH_THETA_S2A`; direct method only for now)
+      :c:macro:`POTSYNTH_THETA_S2A`)
    :param int dphi: 1 to apply :math:`\partial/\partial\phi`
    :param rfac: per-degree factors :math:`\rho(l)`, length :math:`L+1`, or ``None``
       for 1

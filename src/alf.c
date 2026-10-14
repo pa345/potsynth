@@ -157,6 +157,8 @@ Inputs: m - SH order
         s - sin(theta) at the nodes, length POTSYNTH_NB (may be negative)
         Q - (output) Q[(l-m)*POTSYNTH_NB + j] = P(l,0) (m = 0) or scaled Q(l,m) (m > 0)
         E - (output) E[(l-m)*POTSYNTH_NB + j] = dP(l,0)/dtheta (m = 0) or scaled E(l,m) (m > 0)
+        G - (output) G[(l-m)*POTSYNTH_NB + j] = -dQ(l,m)/dx (scaled as Q), or NULL if
+            not needed
         w - workspace
 
 Notes:
@@ -168,11 +170,16 @@ Q(l,m)   = a x Q(l-1,m) + b Q(l-2,m)
 E(l,m)   = a (x E(l-1,m) - s2 Q(l-1,m)) + b E(l-2,m)
 
 For m = 0 the same recursions apply to P and dP/dtheta with s in place of s2.
+
+2) G = -dQ/dx has the same recurrence factors (differentiate the Q recursion):
+
+G(m,m) = 0, G(m+1,m) = c_m (x G(m,m) - Q(m,m)), G(l,m) = a (x G(l-1,m) - Q(l-1,m)) + b G(l-2,m)
 */
 
 void
 potsynth_alf_column(const size_t m, const double * restrict x, const double * restrict s,
-                    double * restrict Q, double * restrict E, const potsynth_alf_workspace * w)
+                    double * restrict Q, double * restrict E, double * restrict G,
+                    const potsynth_alf_workspace * w)
 {
   const size_t lmax = w->lmax;
   const size_t nn = lmax - m + 1;
@@ -185,6 +192,8 @@ potsynth_alf_column(const size_t m, const double * restrict x, const double * re
       t[j] = (m == 0) ? s[j] : s[j] * s[j];
       Q[j] = w->qmm[m];
       E[j] = (double) m * x[j] * w->qmm[m];
+      if (G)
+        G[j] = 0.0;
     }
 
   if (nn == 1)
@@ -195,6 +204,8 @@ potsynth_alf_column(const size_t m, const double * restrict x, const double * re
     {
       Q[POTSYNTH_NB + j] = w->cl[m] * x[j] * Q[j];
       E[POTSYNTH_NB + j] = w->cl[m] * (x[j] * E[j] - t[j] * Q[j]);
+      if (G)
+        G[POTSYNTH_NB + j] = -w->cl[m] * Q[j];
     }
 
   /* l = m + 2 ... lmax */
@@ -213,6 +224,16 @@ potsynth_alf_column(const size_t m, const double * restrict x, const double * re
           q0[j] = a * x[j] * q1[j] + b * q2[j];
           e0[j] = a * (x[j] * e1[j] - t[j] * q1[j]) + b * e2[j];
         }
+
+      if (G)
+        {
+          const double * restrict g1 = G + (k - 1) * POTSYNTH_NB;
+          const double * restrict g2 = G + (k - 2) * POTSYNTH_NB;
+          double * restrict g0 = G + k * POTSYNTH_NB;
+
+          for (j = 0; j < POTSYNTH_NB; ++j)
+            g0[j] = a * (x[j] * g1[j] - q1[j]) + b * g2[j];
+        }
     }
 }
 
@@ -225,10 +246,11 @@ Inputs: nn    - column length, lmax - m + 1
         npair - number of pairs
         W     - weights, 2*npair rows of length ldw (row 2k = A, 2k+1 = B)
         ldw   - leading dimension of W
-        src   - source of pair k: 0 = Q, 1 = E
+        src   - source of pair k: POTSYNTH_COL_Q, POTSYNTH_COL_E or POTSYNTH_COL_G
         n0    - first index (l - m) of pair k
         Q     - column values from potsynth_alf_column()
         E     - column values from potsynth_alf_column()
+        G     - column values from potsynth_alf_column(), or NULL if no pair uses G
         acc   - (output) sums, length 4*npair*POTSYNTH_NB:
                 acc[(4k+0)*NB + j] = sum_{l-m even} WA_k[l-m] src_k[l-m][j]
                 acc[(4k+1)*NB + j] = sum_{l-m odd}  WA_k[l-m] src_k[l-m][j]
@@ -238,13 +260,14 @@ Inputs: nn    - column length, lmax - m + 1
 void
 potsynth_alf_accum(const size_t nn, const size_t npair, const double * restrict W, const size_t ldw,
                    const unsigned char * src, const size_t * n0,
-                   const double * restrict Q, const double * restrict E, double * restrict acc)
+                   const double * restrict Q, const double * restrict E, const double * restrict G,
+                   double * restrict acc)
 {
   size_t k;
 
   for (k = 0; k < npair; ++k)
     {
-      const double * restrict V = src[k] ? E : Q;
+      const double * restrict V = (src[k] == POTSYNTH_COL_Q) ? Q : (src[k] == POTSYNTH_COL_E) ? E : G;
       const double * restrict wa = W + 2 * k * ldw;
       const double * restrict wb = wa + ldw;
       double ae[POTSYNTH_NB], ao[POTSYNTH_NB], be[POTSYNTH_NB], bo[POTSYNTH_NB];
@@ -302,4 +325,92 @@ potsynth_alf_accum(const size_t nn, const size_t npair, const double * restrict 
           acc[(4 * k + 3) * POTSYNTH_NB + j] = bo[j];
         }
     }
+}
+
+/*
+potsynth_op_nterm()
+  Number of terms of a channel with a given theta operator
+*/
+
+size_t
+potsynth_op_nterm(const int op)
+{
+  if (op == POTSYNTH_THETA_S2A)
+    return 3;
+  else if (op == POTSYNTH_THETA_S2B)
+    return 2;
+  else
+    return 1;
+}
+
+/*
+potsynth_op_term()
+  Column and post-factor of term sub of a channel with a given theta operator
+
+Inputs: op   - theta operator
+        sub  - term number, < potsynth_op_nterm(op)
+        col  - (output) POTSYNTH_COL_xxx
+        post - (output) POTSYNTH_POST_xxx
+*/
+
+void
+potsynth_op_term(const int op, const size_t sub, int * col, int * post)
+{
+  switch (op)
+    {
+      case POTSYNTH_THETA_P:
+        *col = POTSYNTH_COL_Q;
+        *post = POTSYNTH_POST_SM;
+        break;
+
+      case POTSYNTH_THETA_PSIN:
+        *col = POTSYNTH_COL_Q;
+        *post = POTSYNTH_POST_SM1;
+        break;
+
+      case POTSYNTH_THETA_DP:
+        *col = POTSYNTH_COL_E;
+        *post = POTSYNTH_POST_SM1;
+        break;
+
+      case POTSYNTH_THETA_S2A:
+        /* 2m(m-1) s^(m-2) Q + (2m - l(l+1)) s^m Q - 2 x s^m G */
+        *col = (sub == 2) ? POTSYNTH_COL_G : POTSYNTH_COL_Q;
+        *post = (sub == 0) ? POTSYNTH_POST_SM2 : (sub == 1) ? POTSYNTH_POST_SM : POTSYNTH_POST_XSM;
+        break;
+
+      default: /* POTSYNTH_THETA_S2B */
+        /* (m-1) x s^(m-2) Q + s^m G */
+        *col = (sub == 0) ? POTSYNTH_COL_Q : POTSYNTH_COL_G;
+        *post = (sub == 0) ? POTSYNTH_POST_XSM2 : POTSYNTH_POST_SM;
+        break;
+    }
+}
+
+/*
+potsynth_op_factor()
+  Factor multiplying the weights of term sub at degree l and order m
+*/
+
+double
+potsynth_op_factor(const int op, const size_t sub, const size_t l, const size_t m)
+{
+  const double dl = (double) l;
+  const double dm = (double) m;
+
+  if (op == POTSYNTH_THETA_S2A)
+    {
+      if (sub == 0)
+        return 2.0 * dm * (dm - 1.0);
+      else if (sub == 1)
+        return 2.0 * dm - dl * (dl + 1.0);
+      else
+        return -2.0;
+    }
+  else if (op == POTSYNTH_THETA_S2B)
+    {
+      return (sub == 0) ? dm - 1.0 : 1.0;
+    }
+
+  return 1.0;
 }

@@ -154,7 +154,7 @@ test_alf_columns(void)
 
       for (m = 0; m <= L; ++m)
         {
-          potsynth_alf_column(m, x, s, Q, E, w);
+          potsynth_alf_column(m, x, s, Q, E, NULL, w);
 
           for (l = m; l <= L; ++l)
             {
@@ -204,11 +204,11 @@ test_alf_columns(void)
         s[j] = 0.0;
       }
 
-    potsynth_alf_column(0, x, s, Q, E, w);
+    potsynth_alf_column(0, x, s, Q, E, NULL, w);
     for (l = 0; l <= L; ++l)
       ps_test_rel(Q[l * POTSYNTH_NB], sqrt(2.0 * l + 1.0), 5.0e-13, "alf: pole P(%zu,0)", l);
 
-    potsynth_alf_column(1, x, s, Q, E, w);
+    potsynth_alf_column(1, x, s, Q, E, NULL, w);
     for (l = 1; l <= L; ++l)
       ps_test_rel(ldexp(Q[(l - 1) * POTSYNTH_NB], w->scale[1]),
                   sqrt((2.0 * l + 1.0) * l * (l + 1.0) / 2.0), 5.0e-13, "alf: pole P(%zu,1)/sin", l);
@@ -289,7 +289,7 @@ test_alf_accum(void)
           n0[k] = (size_t) (test_urand() * (nn + 1)); /* includes n0 = nn (empty) */
         }
 
-      potsynth_alf_accum(nn, npair, W, ldw, src, n0, Q, E, acc);
+      potsynth_alf_accum(nn, npair, W, ldw, src, n0, Q, E, NULL, acc);
 
       for (k = 0; k < npair; ++k)
         {

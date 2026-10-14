@@ -191,10 +191,13 @@ potsynth_alf_idx(const size_t l, const size_t m, const size_t lmax)
 potsynth_alf_workspace * potsynth_alf_alloc(const size_t lmax);
 void potsynth_alf_free(potsynth_alf_workspace * w);
 void potsynth_alf_column(const size_t m, const double * x, const double * s,
-                         double * Q, double * E, const potsynth_alf_workspace * w);
+                         double * Q, double * E, double * G, const potsynth_alf_workspace * w);
 void potsynth_alf_accum(const size_t nn, const size_t npair, const double * W, const size_t ldw,
                         const unsigned char * src, const size_t * n0,
-                        const double * Q, const double * E, double * acc);
+                        const double * Q, const double * E, const double * G, double * acc);
+size_t potsynth_op_nterm(const int op);
+void potsynth_op_term(const int op, const size_t sub, int * col, int * post);
+double potsynth_op_factor(const int op, const size_t sub, const size_t l, const size_t m);
 
 /* direct.c */
 int potsynth_direct_init(potsynth_workspace * w);

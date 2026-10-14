@@ -201,15 +201,15 @@ def test_hessian():
              potsynth.Channel(3, "S2A", 0, np.full(L + 1, 1 / a**2)),
              potsynth.Channel(3, "S2B", 1, np.full(L + 1, 1 / a**2))]
     m = potsynth.Model(coef, 0, L, chans, a)
-    check(m.info["method"] == "direct", "S2A/S2B models use the direct method")
+    check(m.info["method"] == "direct", "no radial range: direct method")
     Trr, Trt, Trp, D, Ttp = m(r, th, ph)
     Tm = np.array([Trr, Trt, Trp, 0.5 * (-Trr + D), Ttp, 0.5 * (-Trr - D)])
     check(rel_err(Tm, T) < 1e-13, f"Hessian channels vs reference ({rel_err(Tm, T):.2e})")
-    try:
-        potsynth.Model(coef, 0, L, chans, a, rmin=1.0, rmax=1.3, method="fast")
-        check(False, "fast method accepted S2A/S2B")
-    except potsynth.PotsynthError as e:
-        check(e.status == 4, "fast method with S2A/S2B error code")
+    for method, tol in (("direct", 1e-13), ("fast", 1e-11)):
+        m = potsynth.Model(coef, 0, L, chans, a, rmin=1.0, rmax=1.3, method=method, eps=1e-12)
+        Trr, Trt, Trp, D, Ttp = m(r, th, ph)
+        Tm = np.array([Trr, Trt, Trp, 0.5 * (-Trr + D), Ttp, 0.5 * (-Trr - D)])
+        check(rel_err(Tm, T) < tol, f"Hessian channels vs reference, {method} ({rel_err(Tm, T):.2e})")
 
     print("  gradient tensor checks done")
 

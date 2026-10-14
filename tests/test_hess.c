@@ -2,7 +2,7 @@
  * test_hess.c
  *
  * Gradient tensor (Hessian) of the potential with the second-derivative
- * operators THETA_S2A and THETA_S2B (direct method):
+ * operators THETA_S2A and THETA_S2B:
  *
  * - against 40-digit reference values (tests/gen_hessian_ref.py), computed
  *   from the Cartesian Hessian independently of the spherical formulas, at
@@ -10,6 +10,8 @@
  * - against finite differences of the gradient (covariant-derivative formulas)
  * - continuity at the poles, isotropy of a zonal field on the axis
  * - terms processed in groups (more channels than one vector kernel holds)
+ * - fast method against direct method, channel by channel, at several
+ *   accuracies, alone and mixed with the gradient channels
  *
  * The tensor of V = sum (a/r)^(l+1) Pbar_l^m [C cos + S sin] is built from
  * five channels, with factors u^(l+3)/a^2:
@@ -358,28 +360,17 @@ test_hess_groups(void)
   potsynth_parameters params = potsynth_default_parameters();
   potsynth_workspace * w5, * w8;
   potsynth_eval_workspace * ew5, * ew8;
-  potsynth_info info;
 
   test_random_points(n, a, a + 500.0, r, theta, phi);
 
-  /* METHOD_AUTO selects the direct method for these operators (for now) */
+  params.method = POTSYNTH_METHOD_DIRECT;
   w5 = test_hess_alloc(0, L, 20, coef, a, a, a + 500.0, 0, &params);
   w8 = test_hess_alloc(0, L, 20, coef, a, a, a + 500.0, 1, &params);
-  potsynth_get_info(&info, w8);
-  ps_test_int(info.method, POTSYNTH_METHOD_DIRECT, "hess: METHOD_AUTO chooses direct");
-
   ew5 = potsynth_eval_alloc(0, w5);
   ew8 = potsynth_eval_alloc(0, w8);
   potsynth_eval(n, r, theta, phi, F5, ew5);
   potsynth_eval(n, r, theta, phi, F8, ew8);
   ps_test(memcmp(F5, F8, 5 * n * sizeof(double)) != 0, "hess: 5 and 8 channels agree (mmax < lmax)");
-
-  /* the fast method does not support the operators yet */
-  params.method = POTSYNTH_METHOD_FAST;
-  test_last_error();
-  ps_test(test_hess_alloc(0, L, L, coef, a, a, a + 500.0, 0, &params) != NULL,
-          "hess: fast method rejected");
-  ps_test_int(test_last_error(), POTSYNTH_EUNSUP, "hess: fast method error code");
 
   potsynth_eval_free(ew5);
   potsynth_eval_free(ew8);
@@ -393,6 +384,110 @@ test_hess_groups(void)
   free(F8);
 }
 
+/*
+test_hess_fast()
+  Fast method against direct method for every channel, relative to the
+maximum of each channel, with the tensor alone and mixed with the gradient
+(8 channels of different operators and sizes); the points include both
+poles at several longitudes
+*/
+
+static void
+test_hess_fast(void)
+{
+  const char * names[] = { "T_rr", "T_rt", "T_rp", "D", "T_tp", "g_r", "g_t", "g_p" };
+  const double a = 6371.2, rmin = a + 250.0, rmax = a + 800.0;
+  const double eps[] = { 1.0e-6, 1.0e-10, 1.0e-13 };
+  const double tol[] = { 1.0e-5, 1.0e-9, 1.0e-12 };
+  const size_t n = 3000;
+  double * r = malloc(n * sizeof(double));
+  double * theta = malloc(n * sizeof(double));
+  double * phi = malloc(n * sizeof(double));
+  double * D = malloc(8 * n * sizeof(double));
+  double * F = malloc(8 * n * sizeof(double));
+  size_t iL;
+
+  test_random_points(n, rmin, rmax, r, theta, phi);
+
+  for (iL = 0; iL < 2; ++iL)
+    {
+      const size_t L = (iL == 0) ? 40 : 120;
+      double * coef = test_random_coef(1, L, L);
+      potsynth_parameters params = potsynth_default_parameters();
+      potsynth_workspace * wd;
+      potsynth_eval_workspace * ewd;
+      size_t ie, ig;
+
+      /* lithospheric-like spectrum for L = 120: flat instead of decaying */
+      if (iL == 1)
+        {
+          size_t i;
+
+          for (i = 0; i < potsynth_nlm(1, L, L); ++i)
+            coef[i] = 2.0 * test_urand() - 1.0;
+        }
+
+      params.method = POTSYNTH_METHOD_DIRECT;
+      wd = test_hess_alloc(1, L, L, coef, a, rmin, rmax, 1, &params);
+      ewd = potsynth_eval_alloc(0, wd);
+      potsynth_eval(n, r, theta, phi, D, ewd);
+
+      for (ig = 0; ig < 2; ++ig)
+        {
+          const size_t nchan = (ig == 0) ? 5 : 8;
+
+          for (ie = 0; ie < 3; ++ie)
+            {
+              potsynth_workspace * wf;
+              potsynth_eval_workspace * ewf;
+              size_t c, i;
+
+              params.method = POTSYNTH_METHOD_FAST;
+              params.eps = eps[ie];
+              wf = test_hess_alloc(1, L, L, coef, a, rmin, rmax, (int) ig, &params);
+              ps_test(wf == NULL, "hess: fast allocation L=%zu nchan=%zu eps=%.0e", L, nchan, eps[ie]);
+              if (wf == NULL)
+                continue;
+
+              ewf = potsynth_eval_alloc(0, wf);
+              potsynth_eval(n, r, theta, phi, F, ewf);
+
+              for (c = 0; c < nchan; ++c)
+                {
+                  double emax = 0.0, vmax = 0.0, epole = 0.0;
+
+                  for (i = 0; i < n; ++i)
+                    {
+                      const double e = fabs(F[c * n + i] - D[c * n + i]);
+
+                      emax = fmax(emax, e);
+                      vmax = fmax(vmax, fabs(D[c * n + i]));
+                      if (theta[i] == 0.0 || theta[i] == M_PI)
+                        epole = fmax(epole, e);
+                    }
+
+                  ps_test(emax / vmax > tol[ie] || epole / vmax > tol[ie],
+                          "hess: fast vs direct L=%zu nchan=%zu eps=%.0e %s (error %.2e, poles %.2e)",
+                          L, nchan, eps[ie], names[c], emax / vmax, epole / vmax);
+                }
+
+              potsynth_eval_free(ewf);
+              potsynth_free(wf);
+            }
+        }
+
+      potsynth_eval_free(ewd);
+      potsynth_free(wd);
+      free(coef);
+    }
+
+  free(r);
+  free(theta);
+  free(phi);
+  free(D);
+  free(F);
+}
+
 static void
 test_hess(void)
 {
@@ -401,4 +496,5 @@ test_hess(void)
   test_hess_fd();
   test_hess_poles();
   test_hess_groups();
+  test_hess_fast();
 }

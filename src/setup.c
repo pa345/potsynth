@@ -157,24 +157,15 @@ potsynth_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const do
   w->nthreads = potsynth_max_threads(p.nthreads);
 
   if (p.method == POTSYNTH_METHOD_AUTO)
-    w->method = auto_method(lmax, nchan, &p);
+    {
+      /* the fast method needs the radial range of the points */
+      if (rmin > 0.0 && rmin <= rmax && isfinite(rmax))
+        w->method = auto_method(lmax, nchan, &p);
+      else
+        w->method = POTSYNTH_METHOD_DIRECT;
+    }
   else
     w->method = p.method;
-
-  /* the second-derivative operators are not yet part of the fast method set-up */
-  for (c = 0; c < nchan; ++c)
-    {
-      if (chan[c].theta == POTSYNTH_THETA_S2A || chan[c].theta == POTSYNTH_THETA_S2B)
-        {
-          if (p.method == POTSYNTH_METHOD_FAST)
-            {
-              potsynth_free(w);
-              POTSYNTH_ERROR_NULL ("THETA_S2A/S2B channels need the direct method", POTSYNTH_EUNSUP);
-            }
-
-          w->method = POTSYNTH_METHOD_DIRECT;
-        }
-    }
 
   if (w->method == POTSYNTH_METHOD_FAST && !(rmin > 0.0 && rmin <= rmax && isfinite(rmax)))
     {

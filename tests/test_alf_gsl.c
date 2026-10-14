@@ -56,7 +56,7 @@ test_alf_gsl_case(const size_t lmax, const double theta)
       /* GSL's diagonal seed is subnormal or zero: column unreliable */
       const int gsl_lost = fabs(gP[gsl_sf_alf_array_index(m, m, lmax)]) < 1.0e-290;
 
-      potsynth_alf_column(m, xv, sv, Q, E, w);
+      potsynth_alf_column(m, xv, sv, Q, E, NULL, w);
 
       for (l = m; l <= lmax; ++l)
         {

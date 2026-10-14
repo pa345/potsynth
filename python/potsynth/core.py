@@ -86,8 +86,7 @@ class Channel:
                                      (d/dphi)^dphi [C_lm cos(m phi) + S_lm sin(m phi)]
 
     theta: "P" (Pbar), "dP" (d Pbar / d theta), "Psin" (Pbar / sin theta, m >= 1),
-           "S2A" or "S2B" (the second-derivative operators of the gradient tensor;
-           direct method only for now).
+           "S2A" or "S2B" (the second-derivative operators of the gradient tensor).
     rfac: per-degree factors, length lmax + 1, or None for 1.
     """
     rpow: int

@@ -30,9 +30,6 @@
 
 #include "potsynth_internal.h"
 
-static size_t direct_nterm(const int op);
-static void direct_term(const int op, const size_t sub, int * col, int * post);
-static double direct_term_factor(const int op, const size_t sub, const size_t l, const size_t m);
 #ifndef POTSYNTH_HAVE_VECEXT
 static void direct_order_generic(const size_t nterm, const double * Wm, const size_t nn,
                                  const double * ab, const double cl, const int * col,
@@ -66,7 +63,7 @@ potsynth_direct_init(potsynth_workspace * w)
 
   w->nterm = 0;
   for (c = 0; c < nchan; ++c)
-    w->nterm += direct_nterm(w->theta_op[c]);
+    w->nterm += potsynth_op_nterm(w->theta_op[c]);
 
   w->doff = malloc(L1 * sizeof(size_t));
   w->tcol = malloc(w->nterm * sizeof(int));
@@ -82,9 +79,9 @@ potsynth_direct_init(potsynth_workspace * w)
     {
       size_t sub;
 
-      for (sub = 0; sub < direct_nterm(w->theta_op[c]); ++sub, ++k)
+      for (sub = 0; sub < potsynth_op_nterm(w->theta_op[c]); ++sub, ++k)
         {
-          direct_term(w->theta_op[c], sub, &(w->tcol[k]), &(w->tpost[k]));
+          potsynth_op_term(w->theta_op[c], sub, &(w->tcol[k]), &(w->tpost[k]));
           w->tchan[k] = c;
           if (w->tcol[k] == POTSYNTH_COL_G)
             w->needG = 1;
@@ -115,7 +112,7 @@ potsynth_direct_init(potsynth_workspace * w)
           const double * rfac = w->rfac + c * L1;
           size_t sub;
 
-          for (sub = 0; sub < direct_nterm(op); ++sub, ++k)
+          for (sub = 0; sub < potsynth_op_nterm(op); ++sub, ++k)
             {
               double * wa = w->dW + w->doff[m] + 2 * k * nn;
               double * wb = wa + nn;
@@ -128,7 +125,7 @@ potsynth_direct_init(potsynth_workspace * w)
               for (l = lstart; l <= L; ++l)
                 {
                   const size_t idx = potsynth_alf_idx(l, m, L);
-                  const double f = rfac[l] * direct_term_factor(op, sub, l, m);
+                  const double f = rfac[l] * potsynth_op_factor(op, sub, l, m);
 
                   if (w->dphi[c] == 0)
                     {
@@ -513,94 +510,6 @@ potsynth_direct_block(const size_t nb, const double * r, const double * theta, c
           out[c * ldo + j] = res[c * POTSYNTH_NB + j] * f;
         }
     }
-}
-
-/*
-direct_nterm()
-  Number of terms of a channel with a given theta operator
-*/
-
-static size_t
-direct_nterm(const int op)
-{
-  if (op == POTSYNTH_THETA_S2A)
-    return 3;
-  else if (op == POTSYNTH_THETA_S2B)
-    return 2;
-  else
-    return 1;
-}
-
-/*
-direct_term()
-  Column and post-factor of term sub of a channel with a given theta operator
-
-Inputs: op   - theta operator
-        sub  - term number, < direct_nterm(op)
-        col  - (output) POTSYNTH_COL_xxx
-        post - (output) POTSYNTH_POST_xxx
-*/
-
-static void
-direct_term(const int op, const size_t sub, int * col, int * post)
-{
-  switch (op)
-    {
-      case POTSYNTH_THETA_P:
-        *col = POTSYNTH_COL_Q;
-        *post = POTSYNTH_POST_SM;
-        break;
-
-      case POTSYNTH_THETA_PSIN:
-        *col = POTSYNTH_COL_Q;
-        *post = POTSYNTH_POST_SM1;
-        break;
-
-      case POTSYNTH_THETA_DP:
-        *col = POTSYNTH_COL_E;
-        *post = POTSYNTH_POST_SM1;
-        break;
-
-      case POTSYNTH_THETA_S2A:
-        /* 2m(m-1) s^(m-2) Q + (2m - l(l+1)) s^m Q - 2 x s^m G */
-        *col = (sub == 2) ? POTSYNTH_COL_G : POTSYNTH_COL_Q;
-        *post = (sub == 0) ? POTSYNTH_POST_SM2 : (sub == 1) ? POTSYNTH_POST_SM : POTSYNTH_POST_XSM;
-        break;
-
-      default: /* POTSYNTH_THETA_S2B */
-        /* (m-1) x s^(m-2) Q + s^m G */
-        *col = (sub == 0) ? POTSYNTH_COL_Q : POTSYNTH_COL_G;
-        *post = (sub == 0) ? POTSYNTH_POST_XSM2 : POTSYNTH_POST_SM;
-        break;
-    }
-}
-
-/*
-direct_term_factor()
-  Factor multiplying the weights of term sub at degree l and order m
-*/
-
-static double
-direct_term_factor(const int op, const size_t sub, const size_t l, const size_t m)
-{
-  const double dl = (double) l;
-  const double dm = (double) m;
-
-  if (op == POTSYNTH_THETA_S2A)
-    {
-      if (sub == 0)
-        return 2.0 * dm * (dm - 1.0);
-      else if (sub == 1)
-        return 2.0 * dm - dl * (dl + 1.0);
-      else
-        return -2.0;
-    }
-  else if (op == POTSYNTH_THETA_S2B)
-    {
-      return (sub == 0) ? dm - 1.0 : 1.0;
-    }
-
-  return 1.0;
 }
 
 #ifndef POTSYNTH_HAVE_VECEXT

@@ -180,7 +180,8 @@ Parameters
 
    With :c:member:`potsynth_parameters.npts_hint` set: use the method with the smaller estimated total
    time for that many points (see :ref:`choosing-method`). Without it: use the fast
-   method for :math:`l_{max} \ge 24` and the direct method otherwise.
+   method for :math:`l_{max} \ge 24` and the direct method otherwise. If no valid
+   radial range :math:`0 < r_{min} \le r_{max}` is given, the direct method is used.
 
 .. c:macro:: POTSYNTH_METHOD_FAST
 
@@ -473,9 +474,7 @@ Generic core
    the angular part of :math:`T_{\theta\phi}` (used with ``dphi = 1``). It is defined
    for :math:`m \ge 1`; the :math:`m = 0` terms are omitted.
 
-The two second-derivative operators are currently evaluated by the direct method only:
-:c:macro:`POTSYNTH_METHOD_AUTO` selects it for models that use them, and
-:c:macro:`POTSYNTH_METHOD_FAST` gives :c:macro:`POTSYNTH_EUNSUP`.
+Both methods support all operators.
 
 For example, the gradient tensor :math:`T = \nabla\nabla V` of
 :math:`V = \sum (a/r)^{l+1} \bar{P}_l^m [\ldots]` is given by five channels, all with

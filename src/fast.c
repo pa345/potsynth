@@ -19,6 +19,12 @@
  * 4) The values of the stored rows are written into the grid in half-complex
  *    order along phi.
  *
+ * Channels are expanded into terms as in the direct method (column Q, E or
+ * G with a weight row and a power of sin(theta)); the sums of the terms of a
+ * channel are combined at each node before step 2. The second-derivative
+ * operators S2A (like P) and S2B (like dP/dtheta) keep the parity and sign
+ * rules of a single operator, so the quadrant symmetries apply unchanged.
+ *
  * Then, for each stored row (in parallel), an inverse real FFT along phi turns
  * the half-complex spectra into grid values, and the periodic padding columns
  * are filled. Peak memory is the grid itself plus small per-thread buffers.
@@ -36,13 +42,14 @@
 /* per-thread buffers */
 typedef struct
 {
-  double * W;           /* weights, 2*npair rows of length lmax+1 */
-  size_t * n0;          /* first index (l - m) of each pair, length npair */
-  unsigned char * src;  /* source of each pair (0 = Q, 1 = E), length npair */
+  double * W;           /* weights, 2*nterm rows of length lmax+1 */
+  size_t * n0;          /* first index (l - m) of each term pair, length nterm */
+  unsigned char * src;  /* column of each term pair (POTSYNTH_COL_xxx), length nterm */
   double * Q;           /* column values, (lmax+1)*POTSYNTH_NB */
   double * E;           /* column values, (lmax+1)*POTSYNTH_NB */
-  double * acc;         /* sums of one node block, 4*npair*POTSYNTH_NB */
-  double * S;           /* quadrant sums, 4*npair*nqp */
+  double * G;           /* column values, (lmax+1)*POTSYNTH_NB, or NULL */
+  double * acc;         /* sums of one node block, 4*nterm*POTSYNTH_NB */
+  double * S;           /* quadrant sums, 4*nterm*nqp */
   double * H;           /* doubled-sphere function, Nt complex */
   double * Z;           /* fine theta grid of each pair, npair*nf1 complex */
   double * R;           /* row transform buffer, nf2 */
@@ -59,6 +66,13 @@ typedef struct
   double * c1;          /* pre-sharpening factors in theta, length lmax+1 */
   double * c2;          /* pre-sharpening factors in phi, length lmax+1 */
   double * shift;       /* e^{-i p pi/Nt}/Nt, p = -lmax..lmax (complex) */
+  size_t nterm;         /* term pairs: (channel c, term t, radial function i) */
+  size_t * tbase;       /* first term pair of channel c is tbase[c] + i; term t at + t*rho */
+  int * tcol;           /* column of each term pair (POTSYNTH_COL_xxx) */
+  int * tpost;          /* factor after the sum (POTSYNTH_POST_xxx) */
+  size_t * tsub;        /* term number within the channel */
+  size_t * tchan;       /* channel of each term pair */
+  int needG;            /* 1 if any term uses column G */
   cfft_plan pt;         /* FFT of length Nt */
   cfft_plan p1;         /* FFT of length nf1 */
   rfft_plan p2;         /* real FFT of length nf2 */
@@ -130,7 +144,8 @@ potsynth_fast_init(potsynth_workspace * w)
 
       for (c = 0; c < w->nchan; ++c)
         {
-          const int m1 = (w->dphi[c] > 0 || w->theta_op[c] == POTSYNTH_THETA_PSIN);
+          const int m1 = (w->dphi[c] > 0 || w->theta_op[c] == POTSYNTH_THETA_PSIN ||
+                          w->theta_op[c] == POTSYNTH_THETA_S2B);
           const double s = m1 ? fmax(sum - sum0, 0.0) : sum;
 
           wn[c * L1 + l] = fabs(w->rfac[c * L1 + l]) * op_norm(w->theta_op[c], l) * sqrt(s);
@@ -279,6 +294,50 @@ fast_state_alloc(potsynth_workspace * w, fast_state_t * state)
 
   memset(state, 0, sizeof(fast_state_t));
 
+  /* term pairs, channel-major, then term, then radial function */
+  state->tbase = malloc(w->nchan * sizeof(size_t));
+  if (state->tbase == NULL)
+    {
+      POTSYNTH_ERROR ("unable to allocate set-up data", POTSYNTH_ENOMEM);
+    }
+
+  state->nterm = 0;
+  for (j = 0; j < w->nchan; ++j)
+    {
+      state->tbase[j] = state->nterm;
+      state->nterm += potsynth_op_nterm(w->theta_op[j]) * w->radial_workspace_p->rho;
+    }
+
+  state->tcol = malloc(state->nterm * sizeof(int));
+  state->tpost = malloc(state->nterm * sizeof(int));
+  state->tsub = malloc(state->nterm * sizeof(size_t));
+  state->tchan = malloc(state->nterm * sizeof(size_t));
+  if (!state->tcol || !state->tpost || !state->tsub || !state->tchan)
+    {
+      POTSYNTH_ERROR ("unable to allocate set-up data", POTSYNTH_ENOMEM);
+    }
+
+  state->needG = 0;
+  for (j = 0; j < w->nchan; ++j)
+    {
+      const size_t rho = w->radial_workspace_p->rho;
+      size_t t, i2;
+
+      for (t = 0; t < potsynth_op_nterm(w->theta_op[j]); ++t)
+        {
+          for (i2 = 0; i2 < rho; ++i2)
+            {
+              const size_t kt = state->tbase[j] + t * rho + i2;
+
+              potsynth_op_term(w->theta_op[j], t, &(state->tcol[kt]), &(state->tpost[kt]));
+              state->tsub[kt] = t;
+              state->tchan[kt] = j;
+              if (state->tcol[kt] == POTSYNTH_COL_G)
+                state->needG = 1;
+            }
+        }
+    }
+
   state->Nt = potsynth_next_smooth(2 * L + 2, 4);
   state->nq = state->Nt / 4;
   state->nqp = (state->nq + POTSYNTH_NB - 1) / POTSYNTH_NB * POTSYNTH_NB;
@@ -335,18 +394,20 @@ fast_state_alloc(potsynth_workspace * w, fast_state_t * state)
     {
       fast_thread * thread = &(state->threads[i]);
 
-      thread->W = potsynth_aligned_alloc(2 * w->nch * L1 * sizeof(double));
-      thread->n0 = malloc(w->nch * sizeof(size_t));
-      thread->src = malloc(w->nch);
+      thread->W = potsynth_aligned_alloc(2 * state->nterm * L1 * sizeof(double));
+      thread->n0 = malloc(state->nterm * sizeof(size_t));
+      thread->src = malloc(state->nterm);
       thread->Q = potsynth_aligned_alloc(L1 * POTSYNTH_NB * sizeof(double));
       thread->E = potsynth_aligned_alloc(L1 * POTSYNTH_NB * sizeof(double));
-      thread->acc = potsynth_aligned_alloc(4 * w->nch * POTSYNTH_NB * sizeof(double));
-      thread->S = potsynth_aligned_alloc(4 * w->nch * state->nqp * sizeof(double));
+      thread->G = state->needG ? potsynth_aligned_alloc(L1 * POTSYNTH_NB * sizeof(double)) : NULL;
+      thread->acc = potsynth_aligned_alloc(4 * state->nterm * POTSYNTH_NB * sizeof(double));
+      thread->S = potsynth_aligned_alloc(4 * state->nterm * state->nqp * sizeof(double));
       thread->H = potsynth_aligned_alloc(2 * state->Nt * sizeof(double));
       thread->Z = potsynth_aligned_alloc(2 * w->nch * w->nf1 * sizeof(double));
       thread->R = potsynth_aligned_alloc(w->nf2 * sizeof(double));
       if (!thread->W || !thread->n0 || !thread->src || !thread->Q || !thread->E ||
-          !thread->acc || !thread->S || !thread->H || !thread->Z || !thread->R)
+          (state->needG && !thread->G) || !thread->acc || !thread->S || !thread->H ||
+          !thread->Z || !thread->R)
         {
           POTSYNTH_ERROR ("unable to allocate thread buffers", POTSYNTH_ENOMEM);
         }
@@ -372,6 +433,21 @@ fast_state_free(fast_state_t * state)
 
   if (state->shift)
     free(state->shift);
+
+  if (state->tbase)
+    free(state->tbase);
+
+  if (state->tcol)
+    free(state->tcol);
+
+  if (state->tpost)
+    free(state->tpost);
+
+  if (state->tsub)
+    free(state->tsub);
+
+  if (state->tchan)
+    free(state->tchan);
 
   if (state->pt)
     destroy_cfft_plan(state->pt);
@@ -405,6 +481,9 @@ fast_state_free(fast_state_t * state)
           if (thread->E)
             potsynth_aligned_free(thread->E);
 
+          if (thread->G)
+            potsynth_aligned_free(thread->G);
+
           if (thread->acc)
             potsynth_aligned_free(thread->acc);
 
@@ -437,15 +516,24 @@ Inputs: m      - SH order
 Notes:
 1) Pair k = (c, i) of channel c and radial function i has weight rows
 A (cos m phi) and B (sin m phi); the angular function is
-G = Re[ (S_A - i S_B) e^{i m phi} ]
+G = Re[ (S_A - i S_B) e^{i m phi} ]. Each pair is the sum of its terms (one
+for P, P/sin, dP/dtheta; three for S2A, two for S2B), each accumulated
+separately and multiplied by its power of sin(theta) (and x) at the node
 
 2) Values on the doubled sphere from the quadrant sums E (l-m even) and
-O (l-m odd), with sigma = (-1)^m for P and (-1)^(m-1) for P/sin, dP/dtheta:
+O (l-m odd) of the combined terms, with sigma = (-1)^m for P, S2A, S2B and
+(-1)^(m-1) for P/sin, dP/dtheta:
 
 theta_j       : E + O
-pi - theta_j  : E - O  (P, P/sin),  O - E  (dP/dtheta)
+pi - theta_j  : E - O  (P, P/sin, S2A),  O - E  (dP/dtheta, S2B)
 2pi - theta_j : sigma * value at theta_j
 pi + theta_j  : sigma * value at pi - theta_j
+
+Under theta -> pi - theta, Q has the parity (-1)^(l-m) in x, E and G the
+opposite parity, and a factor x changes sign; every term of S2A then
+follows E - O and every term of S2B O - E. Under theta -> 2pi - theta only
+the power of sin(theta) changes sign, and the powers of all terms of a
+channel have the parity of m (S2A, S2B).
 */
 
 static int
@@ -464,27 +552,31 @@ fast_order(const size_t m, const fast_state_t * state, fast_thread * thread, pot
   size_t k, b, j, l;
   long r;
 
-  /* weight rows of each pair */
-  for (k = 0; k < npair; ++k)
+  /* weight rows of each term pair */
+  for (k = 0; k < state->nterm; ++k)
     {
-      const size_t c = k / rho;
-      const size_t i = k % rho;
+      const size_t c = state->tchan[k];
+      const size_t i = (k - state->tbase[c]) % rho;
+      const int op = w->theta_op[c];
       const double * beta = w->radial_workspace_p->beta + (c * rho + i) * L1;
       const double * rfac = w->rfac + c * L1;
       double * wa = thread->W + 2 * k * L1;
       double * wb = wa + L1;
       size_t lstart = (w->lmin > m) ? w->lmin : m;
 
-      thread->src[k] = (w->theta_op[c] == POTSYNTH_THETA_DP);
-      if (w->theta_op[c] == POTSYNTH_THETA_PSIN && m == 0)
-        lstart = L + 1; /* P/sin is not defined for m = 0 */
+      thread->src[k] = (unsigned char) state->tcol[k];
+
+      /* P/sin and S2B are not defined for m = 0 */
+      if ((op == POTSYNTH_THETA_PSIN || op == POTSYNTH_THETA_S2B) && m == 0)
+        lstart = L + 1;
 
       thread->n0[k] = lstart - m;
 
       for (l = m; l <= L; ++l)
         {
           const size_t idx = potsynth_alf_idx(l, m, L);
-          const double f = (l >= lstart) ? beta[l] * rfac[l] : 0.0;
+          const double f = (l >= lstart) ?
+                           beta[l] * rfac[l] * potsynth_op_factor(op, state->tsub[k], l, m) : 0.0;
           double A, B;
 
           if (w->dphi[c] == 0)
@@ -506,29 +598,28 @@ fast_order(const size_t m, const fast_state_t * state, fast_thread * thread, pot
   /* recursion + accumulation over node blocks of the first quadrant */
   for (b = 0; b < nqp; b += POTSYNTH_NB)
     {
-      potsynth_alf_column(m, state->xq + b, state->sq + b, thread->Q, thread->E, w->alf_workspace_p);
-      potsynth_alf_accum(nn, npair, thread->W, L1, thread->src, thread->n0, thread->Q, thread->E,
-                         thread->acc);
+      potsynth_alf_column(m, state->xq + b, state->sq + b, thread->Q, thread->E, thread->G,
+                          w->alf_workspace_p);
+      potsynth_alf_accum(nn, state->nterm, thread->W, L1, thread->src, thread->n0, thread->Q,
+                         thread->E, thread->G, thread->acc);
 
-      for (k = 0; k < 4 * npair; ++k)
+      for (k = 0; k < 4 * state->nterm; ++k)
         {
           for (j = 0; j < POTSYNTH_NB; ++j)
             thread->S[k * nqp + b + j] = thread->acc[k * POTSYNTH_NB + j];
         }
     }
 
-  /* each pair: unscale, build the doubled-sphere function, FFT, pre-sharpen, IFFT */
+  /* each pair: combine terms, build the doubled-sphere function, FFT, pre-sharpen, IFFT */
   for (k = 0; k < npair; ++k)
     {
       const size_t c = k / rho;
+      const size_t i = k % rho;
       const int op = w->theta_op[c];
-      const int typeE = (op == POTSYNTH_THETA_DP);
-      const size_t ps = (m == 0) ? 0 : ((op == POTSYNTH_THETA_P) ? m : m - 1); /* power of sin(theta) */
-      const double sgn = (op == POTSYNTH_THETA_P) ? ((m & 1) ? -1.0 : 1.0) : ((m & 1) ? 1.0 : -1.0);
-      const double * AE = thread->S + (4 * k + 0) * nqp;
-      const double * AO = thread->S + (4 * k + 1) * nqp;
-      const double * BE = thread->S + (4 * k + 2) * nqp;
-      const double * BO = thread->S + (4 * k + 3) * nqp;
+      const size_t nt = potsynth_op_nterm(op);
+      const int typeE = (op == POTSYNTH_THETA_DP || op == POTSYNTH_THETA_S2B);
+      const int even = (op == POTSYNTH_THETA_P || op == POTSYNTH_THETA_S2A || op == POTSYNTH_THETA_S2B);
+      const double sgn = even ? ((m & 1) ? -1.0 : 1.0) : ((m & 1) ? 1.0 : -1.0);
       const double pfac = (m == 0) ? 1.0 : 0.5;
       double * H = thread->H;
       double * Z = thread->Z + 2 * k * nf1;
@@ -536,19 +627,43 @@ fast_order(const size_t m, const fast_state_t * state, fast_thread * thread, pot
 
       for (j = 0; j < state->nq; ++j)
         {
-          double ae = AE[j], ao = AO[j], be = BE[j], bo = BO[j];
+          double ae = 0.0, ao = 0.0, be = 0.0, bo = 0.0;
           double vA, vB, uA, uB;
+          size_t t;
 
-          if (m > 0)
+          for (t = 0; t < nt; ++t)
             {
-              double mant;
-              int expo;
+              const size_t kt = state->tbase[c] + t * rho + i;
+              const int post = state->tpost[kt];
+              const double * S = thread->S + 4 * kt * nqp;
+              const int xf = (post == POTSYNTH_POST_XSM || post == POTSYNTH_POST_XSM2);
+              double f = xf ? state->xq[j] : 1.0;
 
-              potsynth_pow_scaled(state->sq[j], ps, &mant, &expo);
-              ae = ldexp(ae * mant, expo + scale);
-              ao = ldexp(ao * mant, expo + scale);
-              be = ldexp(be * mant, expo + scale);
-              bo = ldexp(bo * mant, expo + scale);
+              /* s^(m-2) terms have zero weights for m < 2 */
+              if (m < 2 && (post == POTSYNTH_POST_SM2 || post == POTSYNTH_POST_XSM2))
+                continue;
+
+              if (m > 0)
+                {
+                  const size_t ps = (post == POTSYNTH_POST_SM1) ? m - 1 :
+                                    (post == POTSYNTH_POST_SM2 || post == POTSYNTH_POST_XSM2) ? m - 2 : m;
+                  double mant;
+                  int expo;
+
+                  potsynth_pow_scaled(state->sq[j], ps, &mant, &expo);
+                  f *= mant;
+                  ae += ldexp(f * S[j], expo + scale);
+                  ao += ldexp(f * S[nqp + j], expo + scale);
+                  be += ldexp(f * S[2 * nqp + j], expo + scale);
+                  bo += ldexp(f * S[3 * nqp + j], expo + scale);
+                }
+              else
+                {
+                  ae += f * S[j];
+                  ao += f * S[nqp + j];
+                  be += f * S[2 * nqp + j];
+                  bo += f * S[3 * nqp + j];
+                }
             }
 
           /* theta_j and pi - theta_j */
@@ -659,10 +774,14 @@ fast_row(const size_t row, double * R, const fast_state_t * state, potsynth_work
 static double
 op_norm(const int op, const size_t l)
 {
+  const double dl = (double) l;
+
   if (op == POTSYNTH_THETA_P)
     return 1.0;
+  else if (op == POTSYNTH_THETA_S2A || op == POTSYNTH_THETA_S2B)
+    return (l < 2) ? 0.0 : sqrt(0.5 * (dl - 1.0) * dl * (dl + 1.0) * (dl + 2.0)); /* spin-2 */
 
-  return sqrt(0.5 * (double) l * ((double) l + 1.0));
+  return sqrt(0.5 * dl * (dl + 1.0));
 }
 
 /* a mod n in [0, n) */

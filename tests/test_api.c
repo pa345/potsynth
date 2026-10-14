@@ -148,6 +148,23 @@ test_api(void)
     free(gh60);
   }
 
+  /* METHOD_AUTO without a radial range uses the direct method at any degree */
+  {
+    double * gh60 = test_random_coef(1, 60, 60);
+
+    params = potsynth_default_parameters();
+    w1 = potsynth_mag_alloc(1, 60, 60, gh60, a, 0.0, 0.0, &params);
+    ps_test(w1 == NULL, "api: METHOD_AUTO without radial range at L=60");
+    if (w1)
+      {
+        potsynth_get_info(&info, w1);
+        ps_test_int(info.method, POTSYNTH_METHOD_DIRECT, "api: METHOD_AUTO without radial range chooses direct");
+        potsynth_free(w1);
+      }
+
+    free(gh60);
+  }
+
   /* invalid arguments */
   params = potsynth_default_parameters();
   ps_test(potsynth_mag_alloc(0, L, L, gh, a, rmin, rmax, &params) != NULL, "api: lmin = 0 rejected by mag");
