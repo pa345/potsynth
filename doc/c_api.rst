@@ -4,10 +4,11 @@
 C API
 *****
 
-There are two headers:
+There are three headers:
 
 - ``potsynth.h``: the generic core, with channels of an internal potential.
 - ``potsynth_mag.h``: the magnetic front-end. It includes ``potsynth.h``.
+- ``potsynth_grav.h``: the gravity front-end. It includes ``potsynth.h``.
 
 Typical use
 ===========
@@ -139,7 +140,7 @@ Parameters
 
    .. c:member:: double eps
 
-      Requested accuracy, relative to the largest output value. Default
+      Requested accuracy, relative to the largest value of each output channel. Default
       :math:`10^{-10}`. Any value from about :math:`10^{-4}` down to
       :math:`5 \times 10^{-15}` (the double-precision floor) is meaningful.
 
@@ -273,6 +274,152 @@ core field models are of low degree, where a direct sum is already fast.
 
    Reads an SHC file and builds the magnetic field model, as
    :c:func:`potsynth_mag_alloc`.
+
+Gravity front-end
+=================
+
+The gravity front-end evaluates the gravitational potential :eq:`grav_potential` and the
+acceleration :math:`\mathbf{g} = \nabla V` of a model given by 4-:math:`\pi` fully
+normalized coefficients :math:`\bar{C}_{lm}, \bar{S}_{lm}`. It computes the synthesis
+only:
+
+- no centrifugal term and no normal field are included;
+- coordinates are geocentric spherical, with :math:`r` in metres;
+- coefficients are used as given (no tide-system conversion).
+
+For disturbing quantities, subtract the normal field's even zonal coefficients before
+set-up.
+
+.. c:macro:: POTSYNTH_GRAV_V
+
+   The potential :math:`V` (m\ :sup:`2`/s\ :sup:`2`).
+
+.. c:macro:: POTSYNTH_GRAV_GR
+
+   The radial acceleration :math:`g_r = \partial V/\partial r` (m/s\ :sup:`2`), which is
+   negative (towards the centre).
+
+.. c:macro:: POTSYNTH_GRAV_G
+
+   The acceleration :math:`(g_r, g_\theta, g_\phi) = \nabla V` (m/s\ :sup:`2`), with
+   :math:`g_\theta` positive southwards. It includes :c:macro:`POTSYNTH_GRAV_GR`.
+
+The flags are combined with ``|``. The output channels are in the order :math:`V, g_r,
+g_\theta, g_\phi`, restricted to those requested. Each channel adds to the set-up time
+and grid memory of the fast method, so request only what is needed: for example
+:c:macro:`POTSYNTH_GRAV_GR` alone for radial gravity.
+
+.. c:function:: potsynth_workspace * potsynth_grav_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const double * coef, const double GM, const double a, const double rmin, const double rmax, const int quantities, const potsynth_parameters * params)
+
+   Builds a gravity field model.
+
+   :param lmin: minimum degree, :math:`\ge 0`
+   :param lmax: maximum degree, :math:`\le` :c:macro:`POTSYNTH_LMAX`
+   :param mmax: maximum order, :math:`\le` ``lmax``
+   :param coef: fully normalized coefficients, indexed by :c:macro:`potsynth_idx`
+      (:math:`\bar{C}_{lm}` at :math:`m \ge 0`, :math:`\bar{S}_{lm}` at :math:`-m`). The
+      array is copied.
+   :param GM: gravitational constant times mass (m\ :sup:`3`/s\ :sup:`2`)
+   :param a: reference radius (m)
+   :param rmin: smallest radius (m) at which the model will be evaluated. Required by
+      the fast method; ignored by the direct method.
+   :param rmax: largest radius (m) at which the model will be evaluated, as for ``rmin``
+   :param quantities: ``POTSYNTH_GRAV_xxx`` flags
+   :param params: parameters, or ``NULL`` for the defaults
+   :returns: the workspace, or ``NULL`` on error (reported to the error handler)
+
+   The accuracy :c:member:`potsynth_parameters.eps` applies to each output channel
+   separately. For a full model, each channel is dominated by its central
+   (:math:`l = 0`) term; for :math:`10^{-10}` the potential is accurate to about
+   :math:`10^{-3}` m\ :sup:`2`/s\ :sup:`2` (0.1 mm of geoid height) and
+   :math:`g_r` to about :math:`2 \times 10^{-5}` mGal, measured with EGM2008 at satellite
+   altitudes.
+
+.. c:function:: size_t potsynth_grav_nchan(const int quantities)
+
+   The number of output channels for a set of flags, or 0 if the flags are invalid.
+
+ICGEM files
+-----------
+
+Static models in the ICGEM format (``.gfc`` files, as distributed by the International
+Centre for Global Earth Models, http://icgem.gfz-potsdam.de) can be read directly. The
+file has a header ending with a line ``end_of_head``, and one line
+``gfc l m C S [sigma_C sigma_S]`` per coefficient. The reader uses these header keywords:
+
+- ``earth_gravity_constant``, ``radius`` and ``max_degree``, which are required;
+- ``norm``: ``fully_normalized`` (the default) or ``unnormalized``, which is converted;
+- ``modelname``, ``tide_system`` and ``product_type`` (which must be ``gravity_field``
+  if present).
+
+Other header lines are ignored. Numbers may use Fortran exponents (``1.0D-09``).
+Coefficients absent from the file are zero: many models omit degrees 0 and 1. Files with
+time-variable terms (``gfct``, ``trnd``, ``dot``, ``acos``, ``asin``) give
+:c:macro:`POTSYNTH_EUNSUP`.
+
+.. c:struct:: potsynth_gfc
+
+   .. c:member:: size_t lmin
+
+      minimum degree (0)
+
+   .. c:member:: size_t lmax
+
+      maximum degree (``max_degree``, or the truncation degree)
+
+   .. c:member:: size_t mmax
+
+      maximum order (equal to ``lmax``)
+
+   .. c:member:: double GM
+
+      ``earth_gravity_constant`` (m\ :sup:`3`/s\ :sup:`2`)
+
+   .. c:member:: double a
+
+      ``radius`` (m)
+
+   .. c:member:: char modelname[128]
+
+      ``modelname`` from the header
+
+   .. c:member:: char tide_system[64]
+
+      ``tide_system`` from the header, or ``unknown``
+
+   .. c:member:: double * coef
+
+      fully normalized coefficients, indexed by :c:macro:`potsynth_idx`
+      ``(l, m, 0, lmax)``, ready for :c:func:`potsynth_grav_alloc`
+
+.. c:function:: potsynth_gfc * potsynth_gfc_read(const char * filename, const size_t lmax)
+
+   Reads a static model from a ``.gfc`` file, truncated at degree ``lmax`` (0 for all
+   degrees of the file). Malformed files are reported to the error handler with the line
+   number. Problems detected include a missing ``end_of_head`` or required keyword,
+   unknown keywords, invalid numbers, :math:`m > l`, :math:`l >` ``max_degree``,
+   duplicate entries, a nonzero :math:`S_{l0}` and over-long lines.
+
+   :returns: the model, or ``NULL`` on error
+
+.. c:function:: void potsynth_gfc_free(potsynth_gfc * gfc)
+
+   Frees a model read by :c:func:`potsynth_gfc_read`.
+
+.. c:function:: potsynth_workspace * potsynth_grav_alloc_gfc(const char * filename, const size_t lmax, const double rmin, const double rmax, const int quantities, const potsynth_parameters * params)
+
+   Reads a ``.gfc`` file, truncated at degree ``lmax`` (0 for all degrees), and builds
+   the gravity field model with the file's :math:`GM` and reference radius, as
+   :c:func:`potsynth_grav_alloc`. For example, radial gravity from EGM2008 to degree 720
+   at satellite altitudes:
+
+   .. code-block:: c
+
+      #include <potsynth_grav.h>
+
+      w = potsynth_grav_alloc_gfc("EGM2008.gfc", 720, 6.55e6, 6.9e6, POTSYNTH_GRAV_GR, NULL);
+      ew = potsynth_eval_alloc(0, w);
+      status = potsynth_eval(n, r, theta, phi, g_r, ew);   /* r in m, g_r in m/s^2 */
 
 Generic core
 ============

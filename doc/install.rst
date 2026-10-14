@@ -24,7 +24,7 @@ Building the C library
 
 To build a shared library, which the Python interface needs, add
 ``-DBUILD_SHARED_LIBS=ON``. To install, run ``cmake --install build --prefix ...``.
-This installs ``potsynth.h``, ``potsynth_mag.h`` and the library.
+This installs ``potsynth.h``, ``potsynth_mag.h``, ``potsynth_grav.h`` and the library.
 
 CMake options:
 

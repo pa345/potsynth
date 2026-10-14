@@ -3,7 +3,7 @@
  *
  * Fast synthesis of internal potential-field models at scattered points:
  * generic (field-agnostic) interface. Physical front-ends (potsynth_mag.h,
- * later potsynth_grav.h) translate their quantities into the channels
+ * potsynth_grav.h) translate their quantities into the channels
  * defined here.
  *
  * Each channel c is the quantity
@@ -93,7 +93,7 @@ typedef struct
 
 typedef struct
 {
-  double eps;           /* requested accuracy relative to max output, default 1e-10 */
+  double eps;           /* requested accuracy relative to max of each channel, default 1e-10 */
   int method;           /* POTSYNTH_METHOD_xxx, default POTSYNTH_METHOD_AUTO */
   double sigma;         /* grid oversampling factor; 0 = default (2) */
   int w;                /* window width; 0 = chosen from eps */

@@ -20,6 +20,8 @@ set(POTSYNTH_SOURCES
   ${PROJECT_SOURCE_DIR}/src/error.c
   ${PROJECT_SOURCE_DIR}/src/eval.c
   ${PROJECT_SOURCE_DIR}/src/fast.c
+  ${PROJECT_SOURCE_DIR}/src/gfc.c
+  ${PROJECT_SOURCE_DIR}/src/grav.c
   ${PROJECT_SOURCE_DIR}/src/mag.c
   ${PROJECT_SOURCE_DIR}/src/radial.c
   ${PROJECT_SOURCE_DIR}/src/setup.c
@@ -86,12 +88,14 @@ install(TARGETS potsynth
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES include/potsynth.h include/potsynth_mag.h
+install(FILES include/potsynth.h include/potsynth_mag.h include/potsynth_grav.h
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 if(POTSYNTH_EXAMPLES)
   add_executable(example_mag examples/example_mag.c)
   target_link_libraries(example_mag PRIVATE potsynth)
+  add_executable(example_grav examples/example_grav.c)
+  target_link_libraries(example_grav PRIVATE potsynth)
 endif()
 
 if(POTSYNTH_TESTS)

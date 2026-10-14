@@ -42,8 +42,10 @@ For example, the magnetic field :math:`\mathbf{B} = -\nabla V` of
 
 with :math:`[\ldots] = C_{lm}\cos m\phi + S_{lm}\sin m\phi` and
 :math:`C_{lm} = g_l^m/\sqrt{2l+1}`, :math:`S_{lm} = h_l^m/\sqrt{2l+1}` (conversion from
-Schmidt to 4-:math:`\pi` normalization). A gravity front-end will use the same
-mechanism for the potential, the gravity disturbance and the gradients.
+Schmidt to 4-:math:`\pi` normalization). The gravity front-end uses the same mechanism
+for :eq:`grav_potential`: :math:`V` is the channel :math:`(GM/a)\, u^{l+1} \bar{P}_l^m`,
+and :math:`\mathbf{g} = \nabla V` has the three channels above with factors
+:math:`-(GM/a^2)(l+1)` and :math:`GM/a^2`, without the minus signs.
 
 Overview of the fast method
 ===========================
@@ -391,8 +393,12 @@ The fast method has three error sources:
   :math:`0.1\varepsilon`);
 - floating-point rounding.
 
-The requested accuracy :math:`\varepsilon` is relative to the largest output value
-:math:`\max|f|`. The window width is the smallest :math:`w` whose *measured* error is
+The requested accuracy :math:`\varepsilon` is relative to the largest value
+:math:`\max|f|` of each channel. Channels of very different size, such as a potential and
+its gradient, are each resolved to :math:`\varepsilon`, because the radial basis weights
+each channel by its own size. Coefficients that do not contribute to a channel (order 0
+for :math:`\partial/\partial\phi` and :math:`\bar{P}_l^m/\sin\theta`) are left out of
+its weights. The window width is the smallest :math:`w` whose *measured* error is
 below :math:`\varepsilon`. The measurements below are against 19-digit reference values,
 taking the worst case over :math:`L = 13` and :math:`L = 185` and over a satellite shell
 and a thick shell:

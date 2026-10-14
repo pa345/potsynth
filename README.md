@@ -1,8 +1,8 @@
 # potsynth
 
 Fast synthesis of internal potential-field models at large numbers of scattered points.
-Geomagnetic models (IGRF, CHAOS, lithospheric models) are supported now; gravity models
-(EGM and similar) are planned.
+Geomagnetic models (IGRF, CHAOS, lithospheric models) and gravity field models (EGM2008,
+EIGEN, XGM and others in the ICGEM `.gfc` format) are supported.
 
 After a one-off set-up, the cost per point does not depend on the maximum degree L.
 With 10^6 points, eps = 1e-10 and 16 threads on an Intel Core Ultra 7 265H, compared
@@ -51,7 +51,9 @@ Documentation: `doc/` (Sphinx). Build it with `make -C doc html`, then open
 - A generic core evaluates linear functionals ("channels") of an internal potential.
   Front-ends map physical quantities onto channels:
   - `potsynth_mag`: B = -grad V from Schmidt-normalized Gauss coefficients
-  - `potsynth_grav`: potential, gravity disturbance and anomaly, gradients (planned)
+  - `potsynth_grav`: potential V and acceleration g = grad V from fully normalized
+    coefficients, with an ICGEM `.gfc` reader. Only the synthesis is computed; normal
+    field, gravity anomalies and geoid heights are left to the user.
 - The model workspace is read-only after set-up and can be shared between threads.
   Evaluation does not allocate memory.
 - Coefficients are passed degree by degree, with orders -M..M within each degree (see
@@ -94,6 +96,23 @@ Models in the Swarm SHC format (e.g. LCS-1) can be read directly:
 `potsynth_mag_alloc_shc("LCS-1.shc", 6371.2, rmin, rmax, &params)` in C, or
 `potsynth.MagModel.from_shc("LCS-1.shc", rmin=rmin, rmax=rmax)` in Python.
 
+Gravity models in the ICGEM format (e.g. EGM2008, here truncated at degree 720) give the
+potential and acceleration, with r in metres:
+
+```c
+#include <potsynth_grav.h>
+
+/* out[0..n) = V, out[n..2n) = g_r, then g_theta, g_phi */
+w = potsynth_grav_alloc_gfc("EGM2008.gfc", 720, rmin, rmax,
+                            POTSYNTH_GRAV_V | POTSYNTH_GRAV_G, &params);
+```
+
+```python
+grav = potsynth.GravModel.from_gfc("EGM2008.gfc", lmax=720, quantities="V,g",
+                                   rmin=rmin, rmax=rmax)
+field = grav(r, theta, phi)      # field.V, field.g_r, field.g_theta, field.g_phi
+```
+
 Complete examples are in `examples/`.
 
 ## Building
@@ -124,7 +143,7 @@ kernels, ASan+UBSan, and TSan.
 
 ## Layout
 
-    include/     public headers (potsynth.h core, potsynth_mag.h)
+    include/     public headers (potsynth.h core, potsynth_mag.h, potsynth_grav.h)
     src/         implementation
     extern/      vendored third-party code (pocketfft)
     tests/       tests, long-double reference data (tests/data), benchmark
@@ -138,7 +157,7 @@ kernels, ASan+UBSan, and TSan.
 1. ~~Core set-up and fused evaluation; direct method; validation~~ (done)
 2. ~~Swarm SHC reader for static models (e.g. LCS-1)~~ (done)
 3. Python wheels (pip-installable packages; the ctypes interface works now).
-4. Gravity front-end: ICGEM `.gfc` / EGM2008 readers, GM/r scaling, normal field.
+4. ~~Gravity front-end and ICGEM `.gfc` reader~~ (done)
 5. Adjoint (transpose) operator for inversions (separate extension).
 
 ## License

@@ -117,7 +117,7 @@ potsynth_fast_init(potsynth_workspace * w)
   for (l = w->lmin; l <= L; ++l)
     {
       const size_t M = (l < w->mmax) ? l : w->mmax;
-      double sum = 0.0;
+      double sum0, sum = 0.0;
 
       for (m = 0; m <= M; ++m)
         {
@@ -125,8 +125,33 @@ potsynth_fast_init(potsynth_workspace * w)
           sum += w->C[idx] * w->C[idx] + w->S[idx] * w->S[idx];
         }
 
+      /* order 0 does not contribute to phi derivatives and Pbar/sin(theta) */
+      sum0 = w->C[potsynth_alf_idx(l, 0, L)] * w->C[potsynth_alf_idx(l, 0, L)];
+
       for (c = 0; c < w->nchan; ++c)
-        wn[c * L1 + l] = fabs(w->rfac[c * L1 + l]) * op_norm(w->theta_op[c], l) * sqrt(sum);
+        {
+          const int m1 = (w->dphi[c] > 0 || w->theta_op[c] == POTSYNTH_THETA_PSIN);
+          const double s = m1 ? fmax(sum - sum0, 0.0) : sum;
+
+          wn[c * L1 + l] = fabs(w->rfac[c * L1 + l]) * op_norm(w->theta_op[c], l) * sqrt(s);
+        }
+    }
+
+  /* normalize each channel, so the rank truncation is relative to the size of
+   * each channel (e.g. potential and acceleration differ by a factor ~a) */
+  for (c = 0; c < w->nchan; ++c)
+    {
+      double norm = 0.0;
+
+      for (l = w->lmin; l <= L; ++l)
+        norm += wn[c * L1 + l] * wn[c * L1 + l];
+
+      if (norm > 0.0)
+        {
+          norm = 1.0 / sqrt(norm);
+          for (l = w->lmin; l <= L; ++l)
+            wn[c * L1 + l] *= norm;
+        }
     }
 
   tol = (w->params.rank_tol > 0.0) ? w->params.rank_tol : 0.1 * w->params.eps;

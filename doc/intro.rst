@@ -17,7 +17,16 @@ with :math:`\mathbf{B} = -\nabla V`. Here :math:`(r,\theta,\phi)` are geocentric
 colatitude and longitude, and :math:`a = 6371.2` km is the reference radius. The
 :math:`g_l^m, h_l^m` are the Gauss coefficients, and the :math:`P_l^m` are the Schmidt
 semi-normalized associated Legendre functions. Gravity models have the same structure,
-with a different normalization and prefactor.
+with a different normalization and prefactor:
+
+.. math::
+   :label: grav_potential
+
+   V(r,\theta,\phi) = \frac{GM}{r} \sum_{l=0}^{L} \sum_{m=0}^{l} \left( \frac{a}{r} \right)^{l}
+   \left[ \bar{C}_{lm} \cos m\phi + \bar{S}_{lm} \sin m\phi \right] \bar{P}_l^m(\cos\theta),
+
+with gravitational acceleration :math:`\mathbf{g} = \nabla V` and 4-:math:`\pi` fully
+normalized :math:`\bar{P}_l^m`.
 
 To compare such a model with satellite data (Swarm, CHAMP, Ørsted, ...), it has to be
 evaluated at every measurement position. That can mean millions or billions of points.
@@ -61,15 +70,23 @@ Both methods are:
 - **Free of required dependencies:** written in C11, with optional OpenMP.
 
 potsynth is aimed at **static, high-degree models**: lithospheric field models such as
-LCS-1 (degree 185), and gravity models. Static models in the Swarm SHC format can be read
-directly. Time-dependent core field models are of low degree (13 for the IGRF, about 20
+LCS-1 (degree 185), and gravity models such as EGM2008 (degree 2190). Static models in
+the Swarm SHC format and the ICGEM ``.gfc`` format can be read directly. Time-dependent core field models are of low degree (13 for the IGRF, about 20
 for CHAOS), where a parallel direct sum is already fast, so time-dependent coefficients
 are not handled.
 
 The core of the library is generic. It evaluates any set of *channels*, meaning linear
 functionals of a potential such as :math:`V`, its radial derivative, or its horizontal
-gradient. A magnetic front-end supplies :math:`B_r, B_\theta, B_\phi` from Gauss
-coefficients, and a gravity front-end is planned.
+gradient. Two front-ends supply the usual quantities:
+
+- **Magnetic:** :math:`B_r, B_\theta, B_\phi` from Gauss coefficients.
+- **Gravity:** the potential :math:`V` and the acceleration
+  :math:`g_r, g_\theta, g_\phi` from fully normalized coefficients.
+
+potsynth computes the spherical harmonic synthesis only. Geodetic quantities built on top
+of it, such as the normal field, gravity disturbances and anomalies, and geoid heights,
+are left to the user. For example, subtracting the normal field's even zonal
+coefficients before set-up gives the disturbing potential and the gravity disturbance.
 
 Performance
 ===========

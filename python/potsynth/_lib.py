@@ -51,6 +51,17 @@ class Shc_t(ctypes.Structure):
                 ("gh", c_double_p)]
 
 
+class Gfc_t(ctypes.Structure):
+    _fields_ = [("lmin", ctypes.c_size_t),
+                ("lmax", ctypes.c_size_t),
+                ("mmax", ctypes.c_size_t),
+                ("GM", ctypes.c_double),
+                ("a", ctypes.c_double),
+                ("modelname", ctypes.c_char * 128),
+                ("tide_system", ctypes.c_char * 64),
+                ("coef", c_double_p)]
+
+
 class Info_t(ctypes.Structure):
     _fields_ = [("lmin", ctypes.c_size_t),
                 ("lmax", ctypes.c_size_t),
@@ -120,6 +131,17 @@ lib.potsynth_shc_read.argtypes = [ctypes.c_char_p]
 
 lib.potsynth_shc_free.restype = None
 lib.potsynth_shc_free.argtypes = [ctypes.POINTER(Shc_t)]
+
+lib.potsynth_grav_alloc.restype = ctypes.c_void_p
+lib.potsynth_grav_alloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, c_double_p,
+                                    ctypes.c_double, ctypes.c_double, ctypes.c_double,
+                                    ctypes.c_double, ctypes.c_int, ctypes.POINTER(Params_t)]
+
+lib.potsynth_gfc_read.restype = ctypes.POINTER(Gfc_t)
+lib.potsynth_gfc_read.argtypes = [ctypes.c_char_p, ctypes.c_size_t]
+
+lib.potsynth_gfc_free.restype = None
+lib.potsynth_gfc_free.argtypes = [ctypes.POINTER(Gfc_t)]
 
 lib.potsynth_free.restype = None
 lib.potsynth_free.argtypes = [ctypes.c_void_p]

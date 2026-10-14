@@ -164,7 +164,7 @@ class Model(_Evaluator):
     channels : list of Channel
     a : reference radius (same unit as r)
     rmin, rmax : radial range of the evaluation points (required by the fast method)
-    eps : requested accuracy relative to the largest output value
+    eps : requested accuracy relative to the largest value of each channel
     method : "auto", "fast" or "direct"
     npts_hint : expected number of evaluation points; with "auto", the method with the
                 smaller total time (set-up + evaluation) is chosen (0 = unknown)

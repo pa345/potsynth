@@ -131,8 +131,64 @@ def test_api():
     print("  API checks done")
 
 
+def test_grav():
+    # gfc reader and gravity model: point mass + J2 against closed forms, from_gfc,
+    # quantity selection, time-variable files rejected
+    import tempfile
+    GM, a, C20 = 3.986004415e14, 6378136.3, -0.484165143790e-03
+    head = ("free text\nproduct_type gravity_field\nmodelname TEST\n"
+            f"earth_gravity_constant {GM:.10e}\nradius {a:.10e}\nmax_degree 2\n"
+            "tide_system zero_tide\nend_of_head\n")
+    with tempfile.TemporaryDirectory() as d:
+        f = os.path.join(d, "t.gfc")
+        with open(f, "w") as fp:
+            fp.write(head + "gfc 0 0 1.0D+00 0.0\n" + f"gfc 2 0 {C20:.15e} 0.0\n")
+        g = potsynth.read_gfc(f)
+        check(g.lmax == 2 and g.GM == GM and g.a == a and g.modelname == "TEST"
+              and g.tide_system == "zero_tide", "read_gfc header")
+        check(g.coef[potsynth.idx(2, 0, 0, 2)] == C20 and g.coef[potsynth.idx(1, 0, 0, 2)] == 0.0,
+              "read_gfc coefficients")
+
+        r = np.array([6.3e6, 6.5e6, 6.9e6, 6.4e6])
+        th = np.array([0.0, 0.7, 2.0, np.pi])
+        ph = np.array([0.0, 1.0, 4.0, 2.0])
+        x, q = np.cos(th), a / r
+        P2, dP2 = np.sqrt(5) * 0.5 * (3 * x * x - 1), -np.sqrt(5) * 3 * x * np.sin(th)
+        V = GM / r * (1 + q * q * C20 * P2)
+        gr = -GM / r ** 2 * (1 + 3 * q * q * C20 * P2)
+        gt = GM / r ** 2 * q * q * C20 * dP2
+        for method in ("direct", "fast"):
+            m = potsynth.GravModel.from_gfc(f, rmin=6.3e6, rmax=6.9e6, method=method)
+            out = m(r, th, ph)
+            tol = 1e-13 if method == "direct" else 1e-9
+            check(m.quantities == ("V", "g_r", "g_theta", "g_phi"), "GravModel quantities")
+            check(rel_err(out.V, V) < tol, f"GravModel V ({method})")
+            check(rel_err(np.array([out.g_r, out.g_theta, out.g_phi]),
+                          np.array([gr, gt, 0 * gr])) < tol, f"GravModel g ({method})")
+
+        m = potsynth.GravModel(g.coef, GM, a, quantities=["g_r"], method="direct")
+        check(m.quantities == ("g_r",) and rel_err(m(r, th, ph).g_r, gr) < 1e-13,
+              "GravModel g_r only")
+        try:
+            potsynth.GravModel(g.coef, GM, a, quantities="W")
+            check(False, "unknown quantity accepted")
+        except ValueError:
+            pass
+
+        with open(f, "w") as fp:
+            fp.write(head + "gfc 0 0 1.0 0.0\ngfct 2 0 -4.8e-4 0.0 0.0 0.0 20050101.0\n")
+        try:
+            potsynth.read_gfc(f)
+            check(False, "time-variable gfc accepted")
+        except potsynth.PotsynthError as e:
+            check(e.status == 4, "time-variable gfc error")
+
+    print("  gravity checks done")
+
+
 if __name__ == "__main__":
     test_reference()
     test_api()
+    test_grav()
     print("FAILED" if nfail else "all passed")
     sys.exit(1 if nfail else 0)

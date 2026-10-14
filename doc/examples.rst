@@ -2,7 +2,13 @@
 Examples
 ********
 
-Both examples evaluate a lithospheric magnetic field model at :math:`10^6` random points
+There are two pairs of examples, in C and Python: a magnetic field model and a gravity
+field model.
+
+Magnetic field
+==============
+
+Both magnetic examples evaluate a lithospheric magnetic field model at :math:`10^6` random points
 in the 250--800 km shell, and compare the first 1000 points with the direct sum.
 
 - **Model source:** with a file argument, the model is read from a static Swarm SHC
@@ -12,7 +18,7 @@ in the 250--800 km shell, and compare the first 1000 points with the direct sum.
   265H.
 
 C
-=
+-
 
 ``examples/example_mag.c``. It is built with the library (``POTSYNTH_EXAMPLES``), or
 separately:
@@ -42,7 +48,7 @@ Output:
        6925.883      92.5910   226.3935       -1.2686       -0.7389       -1.8480
 
 Python
-======
+------
 
 ``examples/example_mag.py``:
 
@@ -80,3 +86,81 @@ LCS-1 needs 12 radial functions at :math:`10^{-10}`, against about 9 for a
 dipole-dominated model. A lithospheric model has no large low-degree terms, so its
 field is dominated by high degrees, whose radial factors :math:`(a/r)^{l+2}` change
 more across the shell.
+
+Gravity field
+=============
+
+Both gravity examples evaluate the potential :math:`V` and the acceleration
+:math:`g_r, g_\theta, g_\phi` at :math:`10^6` random points in the 200--500 km shell, and
+compare the first 1000 points with the direct sum, quantity by quantity.
+
+- **Model source:** with a file argument, the model is read from an ICGEM ``.gfc`` file,
+  for example EGM2008 (Pavlis et al., 2012), optionally truncated at a given degree.
+  Without an argument, a synthetic Earth-like model up to degree 360 is used.
+- **Outputs:** the outputs below are for EGM2008 truncated at degree 720, on 16 threads
+  of an Intel Core Ultra 7 265H. ``npts_hint`` lets ``METHOD_AUTO`` choose the faster
+  method for :math:`10^6` points (see :ref:`choosing-method`).
+
+C
+-
+
+``examples/example_grav.c``:
+
+.. code-block:: sh
+
+   cc -O2 example_grav.c -lpotsynth -lm -o example_grav
+   ./example_grav EGM2008.gfc 720
+
+.. literalinclude:: ../examples/example_grav.c
+   :language: c
+   :lines: 19-
+
+Output:
+
+.. code-block:: text
+
+   model:       EGM2008, degrees 0-720, GM = 3.9860044150e+14, a = 6378136.3000, tide system tide_free
+   set-up:      1.889 s
+   method:      fast, window w = 11, radial rank = 11, grid 1448.8 MB
+   evaluation:  1000000 points in 0.269 s
+   fast vs direct (1000 points), V      : max difference 1.01e-03 (1.7e-11 relative)
+   fast vs direct (1000 points), g_r    : max difference 1.64e-10 (1.8e-11 relative)
+   fast vs direct (1000 points), g_theta: max difference 1.96e-13 (1.4e-11 relative)
+   fast vs direct (1000 points), g_phi  : max difference 7.87e-15 (2.3e-11 relative)
+        r [km]  colat [deg]  lon [deg]      V [m^2/s^2]      g_r [mGal]   g_theta [mGal]     g_phi [mGal]
+      6830.193     102.1947   281.9157    58382566.7555    -855479.6377        -501.1826          15.7969
+      6817.669      34.5840    71.1185    58436954.9878    -856289.8625        1127.6632         -11.6479
+      6678.704      57.5571    99.9989    59685986.0068    -893788.3076        1205.7504           6.0446
+      6744.328      92.5910   226.3935    59129989.2152    -877583.7961        -112.0541          -7.5410
+
+Each quantity is accurate to :math:`\varepsilon` relative to its own size, although
+:math:`V` and :math:`g_\phi` differ by more than 11 orders of magnitude.
+
+Python
+------
+
+``examples/example_grav.py``:
+
+.. code-block:: sh
+
+   POTSYNTH_LIBRARY=/path/to/libpotsynth.so PYTHONPATH=/path/to/potsynth/python \
+       python example_grav.py EGM2008.gfc 720
+
+.. literalinclude:: ../examples/example_grav.py
+   :language: python
+   :lines: 12-
+
+Output:
+
+.. code-block:: text
+
+   model:       EGM2008, degrees 0-720, tide system tide_free
+   set-up:      2.320 s
+   method:      fast, window w = 11, radial rank = 11, grid 1448.8 MB
+   evaluation:  1000000 points in 0.256 s
+   fast vs direct (1000 points), V      : max difference 1.06e-03 (1.7e-11 relative)
+   fast vs direct (1000 points), g_r    : max difference 1.63e-10 (1.8e-11 relative)
+   fast vs direct (1000 points), g_theta: max difference 2.21e-13 (1.6e-11 relative)
+   fast vs direct (1000 points), g_phi  : max difference 7.28e-15 (2.3e-11 relative)
+
+   map of g_r at 250 km: shape (181, 360), range [-908722.6, -904571.6] mGal

@@ -19,6 +19,11 @@ evaluated. To build and load the library, see :ref:`installation <python-install
    Br, Btheta, Bphi = model(r, theta, phi)          # nT; theta = colatitude [rad]
    BN, BE, BC = potsynth.rtp_to_nec(Br, Btheta, Bphi)
 
+   grav = potsynth.GravModel.from_gfc("EGM2008.gfc", lmax=720, quantities="V,g",
+                                      rmin=6.55e6, rmax=6.9e6)
+   field = grav(r, theta, phi)                       # r in m
+   field.V, field.g_r                                # m^2/s^2, m/s^2
+
 Magnetic models
 ===============
 
@@ -40,7 +45,7 @@ Magnetic models
       Required by the fast method; ignored by the direct method.
    :param float rmax: largest radius (km) at which the model will be evaluated, as for
       ``rmin``
-   :param float eps: requested accuracy, relative to the largest field value
+   :param float eps: requested accuracy, relative to the largest value of each field component
    :param str method: ``"auto"``, ``"fast"`` or ``"direct"``
    :param int npts_hint: expected number of evaluation points. With ``method="auto"``,
       the method with the smaller total time (set-up plus evaluation) is chosen; 0 means
@@ -98,6 +103,85 @@ Magnetic models
 .. py:function:: rtp_to_nec(Br, Btheta, Bphi)
 
    Returns :math:`(B_N, B_E, B_C) = (-B_\theta, B_\phi, -B_r)`.
+
+Gravity models
+==============
+
+.. py:class:: GravModel(coef, GM, a, lmax=None, lmin=0, mmax=None, quantities="V,g", rmin=0.0, rmax=0.0, eps=1e-10, method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0, npts_hint=0)
+
+   A gravity field model: the gravitational potential :eq:`grav_potential` and the
+   acceleration :math:`\mathbf{g} = \nabla V`. Only the synthesis is computed: no
+   centrifugal term or normal field, and no tide-system conversion (see
+   :c:func:`potsynth_grav_alloc`).
+
+   :param coef: 4-:math:`\pi` fully normalized coefficients, in one of two forms:
+
+      - a tuple ``(C, S)`` of 2-D arrays indexed ``[l, m]``; or
+      - a 1-D vector in the layout of :py:func:`idx` (``C`` at :math:`m \ge 0`, ``S``
+        at :math:`m < 0`).
+   :param float GM: gravitational constant times mass in m\ :sup:`3`/s\ :sup:`2`
+   :param float a: reference radius in m
+   :param int lmax: maximum degree. By default it is taken from ``coef``.
+   :param int lmin: minimum degree, :math:`\ge 0`
+   :param int mmax: maximum order; default ``lmax``
+   :param quantities: any of ``"V"`` (potential, m\ :sup:`2`/s\ :sup:`2`), ``"g_r"``
+      (radial acceleration, m/s\ :sup:`2`) and ``"g"`` (acceleration
+      :math:`g_r, g_\theta, g_\phi`, m/s\ :sup:`2`), as a list or a comma-separated
+      string. Each quantity adds to the set-up time and memory of the fast method.
+   :param float rmin: smallest radius (m) at which the model will be evaluated.
+      Required by the fast method; ignored by the direct method.
+   :param float rmax: largest radius (m), as for ``rmin``
+
+   The other arguments are as for :py:class:`MagModel`; ``eps`` applies to each
+   quantity separately.
+
+   .. py:method:: __call__(r, theta, phi)
+
+      Evaluates the field.
+
+      :param r: radius in m
+      :param theta: colatitude in radians, :math:`[0, \pi]`
+      :param phi: longitude in radians
+      :returns: a named tuple with the requested quantities, in the order ``V``,
+         ``g_r``, ``g_theta``, ``g_phi``, each with the broadcast shape of the inputs.
+         :math:`g_r` is negative (towards the centre) and :math:`g_\theta` is positive
+         southwards.
+
+   .. py:attribute:: quantities
+
+      The names of the output quantities, for example ``("V", "g_r", "g_theta",
+      "g_phi")``.
+
+   .. py:attribute:: info
+
+      As for :py:attr:`MagModel.info`.
+
+   .. py:classmethod:: from_gfc(filename, lmax=0, quantities="V,g", rmin=0.0, rmax=0.0, **kwargs)
+
+      Builds a model from an ICGEM ``.gfc`` file (see :py:func:`read_gfc`), with the
+      file's :math:`GM` and reference radius, truncated at degree ``lmax`` (0 for all
+      degrees). The other arguments are as for :py:class:`GravModel`.
+
+.. py:function:: read_gfc(filename, lmax=0)
+
+   Reads a static gravity field model from an ICGEM ``.gfc`` file, using the C reader
+   (see :c:func:`potsynth_gfc_read`), truncated at degree ``lmax`` (0 for all degrees).
+   Unnormalized files are converted. Malformed files raise :py:exc:`PotsynthError` with
+   the line number. Time-variable models are not supported.
+
+   :returns: :py:class:`GfcModel`
+
+.. py:class:: GfcModel
+
+   The result of :py:func:`read_gfc`, with attributes ``lmin`` (0), ``lmax``, ``mmax``,
+   ``GM`` (m\ :sup:`3`/s\ :sup:`2`), ``a`` (m), ``modelname``, ``tide_system``, and
+   ``coef``: the fully normalized coefficients, indexed by :py:func:`idx`, with absent
+   coefficients set to 0.
+
+   To compute disturbing quantities, subtract the normal field's even zonal coefficients
+   from ``coef`` before building the model, for example
+   ``coef[potsynth.idx(2, 0, 0, lmax)] -= C20_normal``. The normal coefficients must
+   first be rescaled to the model's ``GM`` and ``a``.
 
 Generic models
 ==============
