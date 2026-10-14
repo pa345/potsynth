@@ -26,7 +26,7 @@ def read_ref(path):
     with open(path, "rb") as f:
         L, n = np.fromfile(f, "<i8", 2)
         a, rmin, rmax = np.fromfile(f, "<f8", 3)
-        gh = np.fromfile(f, "<f8", potsynth.ncoef(1, int(L), int(L)))
+        gh = np.fromfile(f, "<f8", potsynth.nlm(1, int(L), int(L)))
         r, th, ph = (np.fromfile(f, "<f8", int(n)) for _ in range(3))
         B = np.fromfile(f, "<f8", 3 * int(n)).reshape(3, int(n))
     return int(L), a, rmin, rmax, gh, r, th, ph, B

@@ -1,176 +1,278 @@
 /*
- * eval.c -- evaluation at scattered points (Step 5 of the method)
+ * eval.c
  *
- * Fast method, per point:
- *   - window weights in theta and phi (2w evaluations);
- *   - w x w weighted sum over the grid of all channels at once; thanks to the
- *     periodic padding columns each window row is one contiguous block of
- *     w * nchp values, so the inner loop is a plain vectorisable multiply-add;
- *   - radial values b_i(a/r) from their Chebyshev series, and the radial sum.
+ * Evaluation at scattered points (step 5 of the fast method, and the direct
+ * method)
+ *
+ * Fast method, for each point:
+ *
+ * 1) window weights in theta and phi (2w evaluations)
+ *
+ * 2) w-by-w weighted sum over the grid of all channels at once; thanks to the
+ *    periodic padding columns each window row is one contiguous block of
+ *    w*nchp values
+ *
+ * 3) radial values b_i(a/r) from their Chebyshev series, and the radial sum
+ *
  * Points are processed in chunks, counting-sorted by grid block so that
- * consecutive points read neighbouring memory, and distributed over threads.
+ * consecutive points read neighboring memory, and distributed over threads.
  *
- * Robustness:
- *   - all inputs are validated before anything is written to the output;
- *   - non-finite inputs (NaN/Inf) give NaN outputs for that point;
- *   - grid indices are clamped, so no input can cause an out-of-bounds read;
- *   - the poles theta = 0, pi need no special treatment: the grid is a smooth
- *     periodic function on the doubled sphere and windows straddling a pole read
- *     the stored margin rows.
+ * All inputs are validated before anything is written to the output;
+ * non-finite inputs (NaN/Inf) give NaN outputs; grid indices are clamped, so no
+ * input can read out of bounds. The poles need no special treatment: the grid
+ * is a smooth periodic function on the doubled sphere, and windows straddling a
+ * pole read the stored margin rows. Evaluation performs no memory allocation.
  *
- * Evaluation performs no memory allocation.
- *
- * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
+ * Copyright (C) 2026 Patrick Alken and Johnathan Burchill, BSD 3-Clause License
  */
 
-#include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "potsynth_internal.h"
 
-#define PS_SORT_BLOCK   16          /* grid cells per sort bin, each direction */
-#define PS_PAR_BLOCK    256         /* points per parallel work unit */
-#define PS_CHUNK_DEF    (1u << 18)  /* default points per chunk */
+#define POTSYNTH_SORT_BLOCK          16          /* grid cells per sort bin, each direction */
+#define POTSYNTH_PAR_BLOCK           256         /* points per parallel work unit */
+#define POTSYNTH_CHUNK_DEFAULT       (1u << 18)  /* default points per chunk */
 
-static size_t
-round8(size_t n)
-{
-  return (n + 7) / 8 * 8;
-}
+static size_t round8(const size_t n);
+static size_t fast_scratch_size(const potsynth_workspace * w);
+static int point_finite(const double r, const double theta, const double phi);
+static double reduce_phi(const double phi);
+static void window_origin(const double theta, const double phi, long * l1, long * l2,
+                          const potsynth_workspace * w);
+static int validate(const size_t n, const double * r, const double * theta, const double * phi,
+                    const potsynth_workspace * w);
+static void window_sum(const double * g0, const size_t rstride, const size_t nchp, const size_t ww,
+                       const double * k1, const double * k2, double * acc);
+static void fast_point(const double r, const double theta, const double phi, const size_t ldo,
+                       double * out, double * scratch, const potsynth_workspace * w);
+static int eval_fast(const size_t n, const double * r, const double * theta, const double * phi,
+                     double * out, potsynth_eval_workspace * ew);
+static int eval_direct(const size_t n, const double * r, const double * theta, const double * phi,
+                       double * out, potsynth_eval_workspace * ew);
 
-/* fast-method per-thread scratch: k1[w], k2[w], acc[nchp], tmp[nchp], T[ncheb], b[rho] */
-static size_t
-fast_scratch_size(const potsynth_workspace *w)
-{
-  return 2 * round8((size_t) w->w) + 2 * round8(w->nchp) + round8(w->rad.ncheb) +
-         round8(w->rad.rho);
-}
+/*
+potsynth_eval_alloc()
+  Allocate an evaluation workspace
+
+Inputs: chunk - points per chunk (0 = default); any number of points may be
+                passed to potsynth_eval()
+        w     - model workspace
+
+Return: pointer to workspace
+
+Notes:
+1) Each thread calling potsynth_eval() concurrently needs its own evaluation
+workspace; the model workspace w may be shared
+*/
 
 potsynth_eval_workspace *
-potsynth_eval_alloc(const potsynth_workspace *w, size_t chunk)
+potsynth_eval_alloc(const size_t chunk, const potsynth_workspace * w)
 {
-  potsynth_eval_workspace *ew;
+  potsynth_eval_workspace * ew;
   size_t tsize;
 
-  if (!w)
-    return NULL;
-
   ew = calloc(1, sizeof(potsynth_eval_workspace));
-  if (!ew)
-    return NULL;
+  if (ew == NULL)
+    {
+      POTSYNTH_ERROR_NULL ("unable to allocate evaluation workspace", POTSYNTH_ENOMEM);
+    }
 
   ew->w = w;
   ew->nthreads = w->nthreads;
-  ew->chunk = (chunk > 0) ? chunk : PS_CHUNK_DEF;
+  ew->chunk = (chunk > 0) ? chunk : POTSYNTH_CHUNK_DEFAULT;
   if (ew->chunk > UINT32_MAX)
     ew->chunk = UINT32_MAX;
 
   if (w->method == POTSYNTH_METHOD_FAST)
     {
-      const size_t nbr = w->nrows / PS_SORT_BLOCK + 1;
-      const size_t nbc = w->ncols / PS_SORT_BLOCK + 1;
+      const size_t nbr = w->nrows / POTSYNTH_SORT_BLOCK + 1;
+      const size_t nbc = w->ncols / POTSYNTH_SORT_BLOCK + 1;
 
       tsize = fast_scratch_size(w);
-      ew->nbins = nbr * nbc + 1;              /* last bin: non-finite points */
+      ew->nbins = nbr * nbc + 1; /* last bin: non-finite points */
       ew->key = malloc(ew->chunk * sizeof(uint32_t));
       ew->order = malloc(ew->chunk * sizeof(uint32_t));
       ew->count = malloc((ew->nbins + 1) * sizeof(size_t));
       if (!ew->key || !ew->order || !ew->count)
         {
           potsynth_eval_free(ew);
-          return NULL;
+          POTSYNTH_ERROR_NULL ("unable to allocate sort arrays", POTSYNTH_ENOMEM);
         }
     }
   else
     {
-      tsize = ps_direct_scratch_size(w);
+      tsize = potsynth_direct_scratch_size(w);
     }
 
   ew->tstride = round8(tsize);
-  ew->tscratch = ps_malloc((size_t) ew->nthreads * ew->tstride * sizeof(double));
-  if (!ew->tscratch)
+  ew->tscratch = potsynth_aligned_alloc((size_t) ew->nthreads * ew->tstride * sizeof(double));
+  if (ew->tscratch == NULL)
     {
       potsynth_eval_free(ew);
-      return NULL;
+      POTSYNTH_ERROR_NULL ("unable to allocate thread scratch", POTSYNTH_ENOMEM);
     }
 
   return ew;
 }
 
 void
-potsynth_eval_free(potsynth_eval_workspace *ew)
+potsynth_eval_free(potsynth_eval_workspace * ew)
 {
-  if (!ew)
-    return;
+  if (ew->key)
+    free(ew->key);
 
-  free(ew->key);
-  free(ew->order);
-  free(ew->count);
-  ps_free(ew->tscratch);
+  if (ew->order)
+    free(ew->order);
+
+  if (ew->count)
+    free(ew->count);
+
+  if (ew->tscratch)
+    potsynth_aligned_free(ew->tscratch);
+
   free(ew);
 }
 
+/*
+potsynth_eval()
+  Evaluate all channels of the model at n points
+
+Inputs: n     - number of points
+        r     - radius, length n
+        theta - colatitude in [0,pi] (radians), length n
+        phi   - longitude (radians), any finite value, length n
+        out   - (output) channel-major, out[c*n + i], length nchan*n
+        ew    - evaluation workspace
+
+Return: success or error
+
+Notes:
+1) All points are validated before anything is written. POTSYNTH_EDOM is
+returned if any point has theta outside [0,pi], r <= 0, or (fast method)
+r outside [rmin,rmax]
+
+2) Points with a NaN or infinite coordinate are not an error: their outputs
+are set to NaN
+
+3) The results are bitwise identical for any number of threads and chunk size
+*/
+
+int
+potsynth_eval(const size_t n, const double * r, const double * theta, const double * phi,
+              double * out, potsynth_eval_workspace * ew)
+{
+  if (n == 0)
+    {
+      return POTSYNTH_SUCCESS;
+    }
+  else if (r == NULL || theta == NULL || phi == NULL || out == NULL)
+    {
+      POTSYNTH_ERROR ("NULL input or output array", POTSYNTH_EINVAL);
+    }
+  else
+    {
+      int status = validate(n, r, theta, phi, ew->w);
+
+      if (status)
+        {
+          POTSYNTH_ERROR ("theta outside [0,pi], r <= 0, or (fast method) r outside [rmin,rmax]", status);
+        }
+
+      if (ew->w->method == POTSYNTH_METHOD_FAST)
+        return eval_fast(n, r, theta, phi, out, ew);
+      else
+        return eval_direct(n, r, theta, phi, out, ew);
+    }
+}
+
+static size_t
+round8(const size_t n)
+{
+  return (n + 7) / 8 * 8;
+}
+
+/* fast method per-thread scratch: k1[w], k2[w], acc[nchp], (spare)[nchp], T[ncheb], b[rho] */
+static size_t
+fast_scratch_size(const potsynth_workspace * w)
+{
+  return 2 * round8((size_t) w->w) + 2 * round8(w->nchp) +
+         round8(w->radial_workspace_p->ncheb) + round8(w->radial_workspace_p->rho);
+}
+
 static int
-point_finite(double r, double theta, double phi)
+point_finite(const double r, const double theta, const double phi)
 {
   return isfinite(r) && isfinite(theta) && isfinite(phi);
 }
 
 /* phi reduced to [0, 2 pi) */
 static double
-reduce_phi(double phi)
+reduce_phi(const double phi)
 {
   double p = fmod(phi, 2.0 * M_PI);
 
   if (p < 0.0)
     p += 2.0 * M_PI;
+
   if (p >= 2.0 * M_PI)
     p = 0.0;
 
   return p;
 }
 
-static long
-clampl(long v, long lo, long hi)
-{
-  return (v < lo) ? lo : ((v > hi) ? hi : v);
-}
+/*
+window_origin()
+  First window row and column of a point, clamped to the stored grid
 
-/* first window row and column of a point (always inside the stored grid) */
+Inputs: theta - colatitude (radians)
+        phi   - longitude in [0,2pi) (radians)
+        l1    - (output) first row
+        l2    - (output) first column
+        w     - workspace
+*/
+
 static void
-window_origin(const potsynth_workspace *w, double theta, double phi, long *l1, long *l2)
+window_origin(const double theta, const double phi, long * l1, long * l2, const potsynth_workspace * w)
 {
-  *l1 = clampl((long) ceil(theta * w->inv_h1 - w->half), w->row_lo, w->row_hi - w->w + 1);
-  *l2 = clampl((long) ceil(phi * w->inv_h2 - w->half), w->col_lo, w->col_hi - w->w + 1);
+  const long r1 = (long) ceil(theta * w->inv_h1 - w->half);
+  const long c1 = (long) ceil(phi * w->inv_h2 - w->half);
+  const long rmax = w->row_hi - w->w + 1;
+  const long cmax = w->col_hi - w->w + 1;
+
+  *l1 = (r1 < w->row_lo) ? w->row_lo : ((r1 > rmax) ? rmax : r1);
+  *l2 = (c1 < w->col_lo) ? w->col_lo : ((c1 > cmax) ? cmax : c1);
 }
 
 /* validate all points before any output is written */
 static int
-validate(const potsynth_workspace *w, size_t npts, const double *r, const double *theta,
-         const double *phi)
+validate(const size_t n, const double * r, const double * theta, const double * phi,
+         const potsynth_workspace * w)
 {
-  const double tmax = 1.0 + 1e-10;
+  const double tmax = 1.0 + 1.0e-10;
   size_t i;
 
-  for (i = 0; i < npts; ++i)
+  for (i = 0; i < n; ++i)
     {
       if (!point_finite(r[i], theta[i], phi[i]))
-        continue;                         /* NaN output, not an error */
+        continue; /* NaN output, not an error */
 
       if (theta[i] < 0.0 || theta[i] > M_PI || !(r[i] > 0.0))
         return POTSYNTH_EDOM;
 
       if (w->method == POTSYNTH_METHOD_FAST)
         {
+          const potsynth_radial_workspace * rad = w->radial_workspace_p;
           const double u = w->a / r[i];
 
-          if (w->rad.ud > 0.0)
+          if (rad->ud > 0.0)
             {
-              if (fabs((u - w->rad.uc) / w->rad.ud) > tmax)
+              if (fabs((u - rad->uc) / rad->ud) > tmax)
                 return POTSYNTH_EDOM;
             }
-          else if (fabs(u - w->rad.uc) > 1e-12 * w->rad.uc)
+          else if (fabs(u - rad->uc) > 1.0e-12 * rad->uc)
             {
               return POTSYNTH_EDOM;
             }
@@ -180,46 +282,53 @@ validate(const potsynth_workspace *w, size_t npts, const double *r, const double
   return POTSYNTH_SUCCESS;
 }
 
+#ifdef POTSYNTH_HAVE_VECEXT
+
+/* 4 doubles; aligned(8) permits unaligned access */
+typedef double potsynth_v4 __attribute__((vector_size(32), aligned(8)));
+
 /*
- * acc[q] = sum_{a,b < w} k1[a] k2[b] g[a*rstride + b*nchp + q],  q < nchp
- *
- * Channels are processed in blocks of CB with NACC independent partial sums
- * (interleaved over b), so that enough independent multiply-add chains are in
- * flight to hide the FMA latency; the fixed sizes let the compiler keep all
- * accumulators in vector registers. Each window row is a contiguous run of
- * w*nchp values.
- */
-#ifdef PS_HAVE_VECEXT
+window_sum()
+  acc[q] = sum_{a,b < w} k1[a] k2[b] g[a*rstride + b*nchp + q], q < nchp
 
-/* 4 doubles; aligned(8) permits unaligned access (the grid is in fact 32-byte
- * aligned here, since nchp is a multiple of 4 and the grid 64-byte aligned) */
-typedef double ps_v4 __attribute__((vector_size(32), aligned(8)));
+Inputs: g0      - first grid value of the window
+        rstride - grid row stride
+        nchp    - padded number of channels (multiple of 4)
+        ww      - window width
+        k1      - window weights in theta, length ww
+        k2      - window weights in phi, length ww
+        acc     - (output) sums, length nchp
 
-static inline void
-window_sum(const double *restrict g0, size_t rstride, size_t nchp, size_t ww,
-           const double *restrict k1, const double *restrict k2, double *restrict acc)
+Notes:
+1) Channels are processed in blocks of 8 with 4 independent partial sums each
+(over b mod 4), so that 8 multiply-add chains hide the FMA latency; all
+accumulators are in vector registers
+*/
+
+static void
+window_sum(const double * restrict g0, const size_t rstride, const size_t nchp, const size_t ww,
+           const double * restrict k1, const double * restrict k2, double * restrict acc)
 {
-  const ps_v4 zero = { 0.0, 0.0, 0.0, 0.0 };
+  const potsynth_v4 zero = { 0.0, 0.0, 0.0, 0.0 };
   size_t q = 0, a, b;
 
-  /* blocks of 8 channels: 2 vectors x 4 partial sums (over b mod 4) = 8
-   * independent multiply-add chains */
+  /* blocks of 8 channels */
   for (; q + 8 <= nchp; q += 8)
     {
-      ps_v4 s0a = zero, s0b = zero, s1a = zero, s1b = zero;
-      ps_v4 s2a = zero, s2b = zero, s3a = zero, s3b = zero;
+      potsynth_v4 s0a = zero, s0b = zero, s1a = zero, s1b = zero;
+      potsynth_v4 s2a = zero, s2b = zero, s3a = zero, s3b = zero;
 
       for (a = 0; a < ww; ++a)
         {
           const double wa = k1[a];
-          const double *g = g0 + a * rstride + q;
+          const double * g = g0 + a * rstride + q;
 
           for (b = 0; b + 4 <= ww; b += 4)
             {
-              const ps_v4 *p0 = (const ps_v4 *) (g + b * nchp);
-              const ps_v4 *p1 = (const ps_v4 *) (g + (b + 1) * nchp);
-              const ps_v4 *p2 = (const ps_v4 *) (g + (b + 2) * nchp);
-              const ps_v4 *p3 = (const ps_v4 *) (g + (b + 3) * nchp);
+              const potsynth_v4 * p0 = (const potsynth_v4 *) (g + b * nchp);
+              const potsynth_v4 * p1 = (const potsynth_v4 *) (g + (b + 1) * nchp);
+              const potsynth_v4 * p2 = (const potsynth_v4 *) (g + (b + 2) * nchp);
+              const potsynth_v4 * p3 = (const potsynth_v4 *) (g + (b + 3) * nchp);
               const double w0 = wa * k2[b], w1 = wa * k2[b + 1];
               const double w2 = wa * k2[b + 2], w3 = wa * k2[b + 3];
 
@@ -235,7 +344,7 @@ window_sum(const double *restrict g0, size_t rstride, size_t nchp, size_t ww,
 
           for (; b < ww; ++b)
             {
-              const ps_v4 *p0 = (const ps_v4 *) (g + b * nchp);
+              const potsynth_v4 * p0 = (const potsynth_v4 *) (g + b * nchp);
               const double w0 = wa * k2[b];
 
               s0a += w0 * p0[0];
@@ -243,41 +352,42 @@ window_sum(const double *restrict g0, size_t rstride, size_t nchp, size_t ww,
             }
         }
 
-      *(ps_v4 *) (acc + q) = (s0a + s1a) + (s2a + s3a);
-      *(ps_v4 *) (acc + q + 4) = (s0b + s1b) + (s2b + s3b);
+      *(potsynth_v4 *) (acc + q) = (s0a + s1a) + (s2a + s3a);
+      *(potsynth_v4 *) (acc + q + 4) = (s0b + s1b) + (s2b + s3b);
     }
 
-  /* remaining block of 4 channels: 4 partial sums */
+  /* remaining block of 4 channels */
   for (; q + 4 <= nchp; q += 4)
     {
-      ps_v4 s0 = zero, s1 = zero, s2 = zero, s3 = zero;
+      potsynth_v4 s0 = zero, s1 = zero, s2 = zero, s3 = zero;
 
       for (a = 0; a < ww; ++a)
         {
           const double wa = k1[a];
-          const double *g = g0 + a * rstride + q;
+          const double * g = g0 + a * rstride + q;
 
           for (b = 0; b + 4 <= ww; b += 4)
             {
-              s0 += (wa * k2[b]) * *(const ps_v4 *) (g + b * nchp);
-              s1 += (wa * k2[b + 1]) * *(const ps_v4 *) (g + (b + 1) * nchp);
-              s2 += (wa * k2[b + 2]) * *(const ps_v4 *) (g + (b + 2) * nchp);
-              s3 += (wa * k2[b + 3]) * *(const ps_v4 *) (g + (b + 3) * nchp);
+              s0 += (wa * k2[b]) * *(const potsynth_v4 *) (g + b * nchp);
+              s1 += (wa * k2[b + 1]) * *(const potsynth_v4 *) (g + (b + 1) * nchp);
+              s2 += (wa * k2[b + 2]) * *(const potsynth_v4 *) (g + (b + 2) * nchp);
+              s3 += (wa * k2[b + 3]) * *(const potsynth_v4 *) (g + (b + 3) * nchp);
             }
 
           for (; b < ww; ++b)
-            s0 += (wa * k2[b]) * *(const ps_v4 *) (g + b * nchp);
+            s0 += (wa * k2[b]) * *(const potsynth_v4 *) (g + b * nchp);
         }
 
-      *(ps_v4 *) (acc + q) = (s0 + s1) + (s2 + s3);
+      *(potsynth_v4 *) (acc + q) = (s0 + s1) + (s2 + s3);
     }
 }
 
 #else
 
+/* portable version of window_sum() */
 static void
-window_sum(const double *restrict g0, size_t rstride, size_t nchp, size_t ww,
-           const double *restrict k1, const double *restrict k2, double *restrict acc)
+window_sum(const double * restrict g0, const size_t rstride, const size_t nchp, const size_t ww,
+           const double * restrict k1, const double * restrict k2, double * restrict acc)
 {
   size_t q, a, b;
 
@@ -285,33 +395,49 @@ window_sum(const double *restrict g0, size_t rstride, size_t nchp, size_t ww,
     acc[q] = 0.0;
 
   for (a = 0; a < ww; ++a)
-    for (b = 0; b < ww; ++b)
-      {
-        const double wab = k1[a] * k2[b];
-        const double *g = g0 + a * rstride + b * nchp;
+    {
+      for (b = 0; b < ww; ++b)
+        {
+          const double wab = k1[a] * k2[b];
+          const double * g = g0 + a * rstride + b * nchp;
 
-        for (q = 0; q < nchp; ++q)
-          acc[q] += wab * g[q];
-      }
+          for (q = 0; q < nchp; ++q)
+            acc[q] += wab * g[q];
+        }
+    }
 }
 
-#endif
+#endif /* POTSYNTH_HAVE_VECEXT */
+
+/*
+fast_point()
+  Evaluate all channels at one point with the fast method
+
+Inputs: r       - radius
+        theta   - colatitude (radians)
+        phi     - longitude (radians)
+        ldo     - output stride between channels
+        out     - (output) out[c*ldo]
+        scratch - per-thread scratch space
+        w       - workspace
+*/
 
 static void
-fast_point(const potsynth_workspace *w, double *scratch, double r, double theta, double phi,
-           double *out, size_t ldo)
+fast_point(const double r, const double theta, const double phi, const size_t ldo,
+           double * out, double * scratch, const potsynth_workspace * w)
 {
-  const int ww = w->w;
-  const size_t nchp = w->nchp, ncols = w->ncols, rho = w->rad.rho, ncheb = w->rad.ncheb;
-  double *k1 = scratch;
-  double *k2 = k1 + round8((size_t) ww);
-  double *acc = k2 + round8((size_t) ww);
-  double *T = acc + 2 * round8(nchp);
-  double *b = T + round8(ncheb);
-  const double ph = reduce_phi(phi);
-  const double zt = theta * w->inv_h1, zp = ph * w->inv_h2;
+  const potsynth_radial_workspace * rad = w->radial_workspace_p;
+  const size_t ww = (size_t) w->w;
+  const size_t nchp = w->nchp;
+  const size_t rho = rad->rho;
+  const size_t ncheb = rad->ncheb;
   const double ihalf = 1.0 / w->half;
-  double t;
+  double * k1 = scratch;
+  double * k2 = k1 + round8(ww);
+  double * acc = k2 + round8(ww);
+  double * T = acc + 2 * round8(nchp);
+  double * b = T + round8(ncheb);
+  double ph, zt, zp, t;
   long l1, l2;
   size_t a, i, k, c;
 
@@ -319,24 +445,31 @@ fast_point(const potsynth_workspace *w, double *scratch, double r, double theta,
     {
       for (c = 0; c < w->nchan; ++c)
         out[c * ldo] = NAN;
+
       return;
     }
 
-  window_origin(w, theta, ph, &l1, &l2);
+  ph = reduce_phi(phi);
+  zt = theta * w->inv_h1;
+  zp = ph * w->inv_h2;
 
-  for (a = 0; a < (size_t) ww; ++a)
+  window_origin(theta, ph, &l1, &l2, w);
+
+  /* window weights */
+  for (a = 0; a < ww; ++a)
     {
-      k1[a] = ps_window((zt - (double) (l1 + (long) a)) * ihalf, w->beta);
-      k2[a] = ps_window((zp - (double) (l2 + (long) a)) * ihalf, w->beta);
+      k1[a] = potsynth_window((zt - (double) (l1 + (long) a)) * ihalf, w->beta);
+      k2[a] = potsynth_window((zp - (double) (l2 + (long) a)) * ihalf, w->beta);
     }
 
-  window_sum(w->grid + ((size_t) (l1 - w->row_lo) * ncols + (size_t) (l2 - w->col_lo)) * nchp,
-             ncols * nchp, nchp, (size_t) ww, k1, k2, acc);
+  /* w-by-w window sum, all channels */
+  window_sum(w->grid + ((size_t) (l1 - w->row_lo) * w->ncols + (size_t) (l2 - w->col_lo)) * nchp,
+             w->ncols * nchp, nchp, ww, k1, k2, acc);
 
-  /* radial values */
-  if (w->rad.ud > 0.0)
+  /* radial values b_i(t) */
+  if (rad->ud > 0.0)
     {
-      t = (w->a / r - w->rad.uc) / w->rad.ud;
+      t = (w->a / r - rad->uc) / rad->ud;
       t = (t > 1.0) ? 1.0 : ((t < -1.0) ? -1.0 : t);
     }
   else
@@ -352,41 +485,54 @@ fast_point(const potsynth_workspace *w, double *scratch, double r, double theta,
 
   for (i = 0; i < rho; ++i)
     {
-      const double *bas = w->rad.basis + i * ncheb;
+      const double * basis = rad->basis + i * ncheb;
       double sum = 0.0;
 
       for (k = 0; k < ncheb; ++k)
-        sum += bas[k] * T[k];
+        sum += basis[k] * T[k];
+
       b[i] = sum;
     }
 
+  /* radial sum */
   for (c = 0; c < w->nchan; ++c)
     {
       double sum = 0.0;
 
       for (i = 0; i < rho; ++i)
         sum += b[i] * acc[c * rho + i];
+
       out[c * ldo] = sum;
     }
 }
 
+/*
+eval_fast()
+  Fast method evaluation: chunks of points, counting sort by grid block,
+parallel over blocks of sorted points
+*/
+
 static int
-eval_fast(const potsynth_workspace *w, potsynth_eval_workspace *ew, size_t npts,
-          const double *r, const double *theta, const double *phi, double *out)
+eval_fast(const size_t n, const double * r, const double * theta, const double * phi,
+          double * out, potsynth_eval_workspace * ew)
 {
-  const size_t nbc = w->ncols / PS_SORT_BLOCK + 1;
+  const potsynth_workspace * w = ew->w;
+  const size_t nbc = w->ncols / POTSYNTH_SORT_BLOCK + 1;
   size_t s0;
 
-  for (s0 = 0; s0 < npts; s0 += ew->chunk)
+  for (s0 = 0; s0 < n; s0 += ew->chunk)
     {
-      const size_t n = (npts - s0 < ew->chunk) ? npts - s0 : ew->chunk;
-      const double *rc = r + s0, *tc = theta + s0, *pc = phi + s0;
+      const size_t nc = (n - s0 < ew->chunk) ? n - s0 : ew->chunk;
+      const double * rc = r + s0;
+      const double * tc = theta + s0;
+      const double * pc = phi + s0;
+      const long nblk = (long) ((nc + POTSYNTH_PAR_BLOCK - 1) / POTSYNTH_PAR_BLOCK);
       size_t i, k;
-      long blk, nblk;
+      long blk;
 
       /* counting sort by grid block */
       memset(ew->count, 0, (ew->nbins + 1) * sizeof(size_t));
-      for (i = 0; i < n; ++i)
+      for (i = 0; i < nc; ++i)
         {
           size_t key;
 
@@ -394,9 +540,9 @@ eval_fast(const potsynth_workspace *w, potsynth_eval_workspace *ew, size_t npts,
             {
               long l1, l2;
 
-              window_origin(w, tc[i], reduce_phi(pc[i]), &l1, &l2);
-              key = (size_t) (l1 - w->row_lo) / PS_SORT_BLOCK * nbc +
-                    (size_t) (l2 - w->col_lo) / PS_SORT_BLOCK;
+              window_origin(tc[i], reduce_phi(pc[i]), &l1, &l2, w);
+              key = (size_t) (l1 - w->row_lo) / POTSYNTH_SORT_BLOCK * nbc +
+                    (size_t) (l2 - w->col_lo) / POTSYNTH_SORT_BLOCK;
             }
           else
             {
@@ -404,33 +550,31 @@ eval_fast(const potsynth_workspace *w, potsynth_eval_workspace *ew, size_t npts,
             }
 
           ew->key[i] = (uint32_t) key;
-          ++ew->count[key + 1];
+          ++(ew->count[key + 1]);
         }
 
       for (k = 0; k < ew->nbins; ++k)
         ew->count[k + 1] += ew->count[k];
 
-      for (i = 0; i < n; ++i)
+      for (i = 0; i < nc; ++i)
         ew->order[ew->count[ew->key[i]]++] = (uint32_t) i;
 
-      nblk = (long) ((n + PS_PAR_BLOCK - 1) / PS_PAR_BLOCK);
-
-#pragma omp parallel for schedule(dynamic, 4) num_threads(ew->nthreads)
+#pragma omp parallel for private(blk) schedule(dynamic, 4) num_threads(ew->nthreads)
       for (blk = 0; blk < nblk; ++blk)
         {
 #ifdef _OPENMP
-          double *scratch = ew->tscratch + (size_t) omp_get_thread_num() * ew->tstride;
+          double * scratch = ew->tscratch + (size_t) omp_get_thread_num() * ew->tstride;
 #else
-          double *scratch = ew->tscratch;
+          double * scratch = ew->tscratch;
 #endif
-          const size_t j0 = (size_t) blk * PS_PAR_BLOCK;
-          const size_t j1 = (j0 + PS_PAR_BLOCK < n) ? j0 + PS_PAR_BLOCK : n;
+          const size_t j0 = (size_t) blk * POTSYNTH_PAR_BLOCK;
+          const size_t j1 = (j0 + POTSYNTH_PAR_BLOCK < nc) ? j0 + POTSYNTH_PAR_BLOCK : nc;
           size_t jj;
 
           for (jj = j0; jj < j1; ++jj)
             {
               const size_t idx = ew->order[jj];
-              fast_point(w, scratch, rc[idx], tc[idx], pc[idx], out + s0 + idx, npts);
+              fast_point(rc[idx], tc[idx], pc[idx], n, out + s0 + idx, scratch, w);
             }
         }
     }
@@ -438,25 +582,31 @@ eval_fast(const potsynth_workspace *w, potsynth_eval_workspace *ew, size_t npts,
   return POTSYNTH_SUCCESS;
 }
 
+/*
+eval_direct()
+  Direct method evaluation: blocks of POTSYNTH_NB points in parallel
+*/
+
 static int
-eval_direct(const potsynth_workspace *w, potsynth_eval_workspace *ew, size_t npts,
-            const double *r, const double *theta, const double *phi, double *out)
+eval_direct(const size_t n, const double * r, const double * theta, const double * phi,
+            double * out, potsynth_eval_workspace * ew)
 {
-  const long nblk = (long) ((npts + PS_NB - 1) / PS_NB);
+  const potsynth_workspace * w = ew->w;
+  const long nblk = (long) ((n + POTSYNTH_NB - 1) / POTSYNTH_NB);
   long blk;
 
-#pragma omp parallel for schedule(dynamic, 16) num_threads(ew->nthreads)
+#pragma omp parallel for private(blk) schedule(dynamic, 16) num_threads(ew->nthreads)
   for (blk = 0; blk < nblk; ++blk)
     {
 #ifdef _OPENMP
-      double *scratch = ew->tscratch + (size_t) omp_get_thread_num() * ew->tstride;
+      double * scratch = ew->tscratch + (size_t) omp_get_thread_num() * ew->tstride;
 #else
-      double *scratch = ew->tscratch;
+      double * scratch = ew->tscratch;
 #endif
-      const size_t j0 = (size_t) blk * PS_NB;
-      const size_t nb = (j0 + PS_NB < npts) ? PS_NB : npts - j0;
-      double rb[PS_NB], tb[PS_NB], pb[PS_NB];
-      int bad[PS_NB];
+      const size_t j0 = (size_t) blk * POTSYNTH_NB;
+      const size_t nb = (j0 + POTSYNTH_NB < n) ? POTSYNTH_NB : n - j0;
+      double rb[POTSYNTH_NB], tb[POTSYNTH_NB], pb[POTSYNTH_NB];
+      int bad[POTSYNTH_NB];
       size_t j, c;
 
       /* non-finite points are replaced by a harmless one and flagged */
@@ -468,36 +618,17 @@ eval_direct(const potsynth_workspace *w, potsynth_eval_workspace *ew, size_t npt
           pb[j] = bad[j] ? 0.0 : phi[j0 + j];
         }
 
-      ps_direct_block(w, scratch, nb, rb, tb, pb, out + j0, npts);
+      potsynth_direct_block(nb, rb, tb, pb, n, out + j0, scratch, w);
 
       for (j = 0; j < nb; ++j)
-        if (bad[j])
-          for (c = 0; c < w->nchan; ++c)
-            out[c * npts + j0 + j] = NAN;
+        {
+          if (bad[j])
+            {
+              for (c = 0; c < w->nchan; ++c)
+                out[c * n + j0 + j] = NAN;
+            }
+        }
     }
 
   return POTSYNTH_SUCCESS;
-}
-
-int
-potsynth_eval(const potsynth_workspace *w, potsynth_eval_workspace *ew, size_t npts,
-              const double *r, const double *theta, const double *phi, double *out)
-{
-  int status;
-
-  if (!w || !ew || ew->w != w)
-    return POTSYNTH_EINVAL;
-  if (npts == 0)
-    return POTSYNTH_SUCCESS;
-  if (!r || !theta || !phi || !out)
-    return POTSYNTH_EINVAL;
-
-  status = validate(w, npts, r, theta, phi);
-  if (status)
-    return status;
-
-  if (w->method == POTSYNTH_METHOD_FAST)
-    return eval_fast(w, ew, npts, r, theta, phi, out);
-
-  return eval_direct(w, ew, npts, r, theta, phi, out);
 }

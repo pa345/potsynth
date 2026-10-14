@@ -1,63 +1,90 @@
 /*
- * window.c -- exponential-of-semicircle window, its Fourier transform, and the
- * choice of window width
+ * window.c
  *
- *   phi(z) = exp(beta (sqrt(1 - z^2) - 1)),  |z| <= 1,   z = x / (w h / 2)
+ * Exponential of semicircle window, its Fourier transform, and the choice of
+ * window width:
  *
- * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
+ * phi(z) = exp(beta (sqrt(1 - z^2) - 1)),  |z| <= 1,  z = x / (w h / 2)
+ *
+ * Copyright (C) 2026 Patrick Alken and Johnathan Burchill, BSD 3-Clause License
  */
 
-#include <math.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include "potsynth_internal.h"
 
-/* Measured maximum error of the complete transform, relative to max |B|, against
- * a 19-digit reference (tests/gen_reference.py), worst case over L = 13, L = 185
- * (250-800 km shell) and L = 185 (r in [a, 2a]); indexed by w. The error is
- * essentially independent of L and of the radial range; ~5e-15 is the rounding
- * floor of double precision. */
-static const double err_sigma2[PS_WMAX + 1] =
+/*
+ * Measured maximum error of the complete transform, relative to max |B|,
+ * against a 19-digit reference (tests/gen_reference.py), worst case over
+ * L = 13, L = 185 (250-800 km shell) and L = 185 (r in [a, 2a]); indexed by w.
+ * The error is essentially independent of L and of the radial range; ~5e-15 is
+ * the rounding floor of double precision.
+ */
+static const double err_sigma2[POTSYNTH_WMAX + 1] =
 {
   0, 0, 0, 0, 8e-4, 2e-5, 9e-6, 7e-7, 3e-8, 5e-9, 6e-10, 3e-11, 6e-12, 4e-13, 3e-14, 1e-14, 7e-15
 };
 
-static const double err_sigma3[PS_WMAX + 1] =
+static const double err_sigma3[POTSYNTH_WMAX + 1] =
 {
   0, 0, 0, 0, 2e-4, 3e-5, 1e-6, 2e-7, 7e-9, 7e-10, 6e-11, 3e-12, 4e-13, 1e-14, 1e-14, 7e-15, 9e-15
 };
 
+/*
+potsynth_window_choose()
+  Choose the smallest window width whose measured error is below eps
+
+Inputs: eps   - requested accuracy
+        sigma - oversampling factor
+
+Return: window width w
+*/
+
 int
-ps_window_choose(double eps, double sigma)
+potsynth_window_choose(const double eps, const double sigma)
 {
-  const double *table = (sigma >= 3.0) ? err_sigma3 : err_sigma2;
+  const double * table = (sigma >= 3.0) ? err_sigma3 : err_sigma2;
   int w;
 
-  for (w = 4; w <= PS_WMAX; ++w)
-    if (table[w] <= eps)
-      return w;
+  for (w = 4; w <= POTSYNTH_WMAX; ++w)
+    {
+      if (table[w] <= eps)
+        return w;
+    }
 
-  return PS_WMAX;
+  return POTSYNTH_WMAX;
 }
 
-/* Gauss-Legendre nodes and weights on [-1,1] (Newton iteration on P_n) */
+/*
+potsynth_gauss_legendre()
+  Gauss-Legendre nodes and weights on [-1,1] (Newton iteration on P_n)
+
+Inputs: n - number of nodes
+        x - (output) nodes, length n, increasing
+        w - (output) weights, length n
+*/
+
 void
-ps_gauss_legendre(size_t n, double *x, double *w)
+potsynth_gauss_legendre(const size_t n, double * x, double * w)
 {
-  size_t i, k, it;
+  size_t i, k, iter;
 
   for (i = 0; i < (n + 1) / 2; ++i)
     {
       double z = cos(M_PI * (i + 0.75) / (n + 0.5));
-      double dp = 1.0;
+      double p0, p1, dp;
 
-      for (it = 0; it < 100; ++it)
+      for (iter = 0; iter < 100; ++iter)
         {
-          double p0 = 1.0, p1 = z, dz;
+          double dz;
 
+          p0 = 1.0;
+          p1 = z;
           for (k = 2; k <= n; ++k)
             {
               const double p2 = ((2.0 * k - 1.0) * z * p1 - (k - 1.0) * p0) / k;
+
               p0 = p1;
               p1 = p2;
             }
@@ -66,21 +93,22 @@ ps_gauss_legendre(size_t n, double *x, double *w)
           dp = n * (z * p1 - p0) / (z * z - 1.0);
           dz = p1 / dp;
           z -= dz;
-          if (fabs(dz) <= 1e-16 * fabs(z))
+
+          if (fabs(dz) <= 1.0e-16 * fabs(z))
             break;
         }
 
-      {
-        double p0 = 1.0, p1 = z;
+      p0 = 1.0;
+      p1 = z;
+      for (k = 2; k <= n; ++k)
+        {
+          const double p2 = ((2.0 * k - 1.0) * z * p1 - (k - 1.0) * p0) / k;
 
-        for (k = 2; k <= n; ++k)
-          {
-            const double p2 = ((2.0 * k - 1.0) * z * p1 - (k - 1.0) * p0) / k;
-            p0 = p1;
-            p1 = p2;
-          }
-        dp = n * (z * p1 - p0) / (z * z - 1.0);
-      }
+          p0 = p1;
+          p1 = p2;
+        }
+
+      dp = n * (z * p1 - p0) / (z * z - 1.0);
 
       x[i] = -z;
       x[n - 1 - i] = z;
@@ -89,31 +117,46 @@ ps_gauss_legendre(size_t n, double *x, double *w)
 }
 
 /*
- * phi_hat(k) = alpha * int_{-1}^{1} phi(z) cos(k alpha z) dz,  alpha = w h / 2.
- *
- * phi has a square-root singularity at z = +-1 (of size e^-beta, not negligible
- * for small w), which limits Gauss-Legendre in z to algebraic convergence. With
- * z = sin(t), sqrt(1 - z^2) = cos(t) and the integrand
- *   exp(beta (cos t - 1)) cos(k alpha sin t) cos t,  t in [-pi/2, pi/2]
- * is entire, so Gauss-Legendre in t converges exponentially.
- */
+potsynth_window_ft()
+  Fourier transform of the window
+
+phi_hat(k) = alpha \int_{-1}^{1} phi(z) cos(k alpha z) dz,  alpha = w h / 2
+
+Inputs: nk   - number of frequencies, k = 0..nk-1
+        w    - window width (grid steps)
+        beta - window shape parameter
+        h    - grid spacing
+        out  - (output) phi_hat(k), length nk
+
+Return: success or error
+
+Notes:
+1) phi has a square-root singularity at z = +-1 (of size e^-beta, not
+negligible for small w), which limits Gauss-Legendre in z to algebraic
+convergence. With z = sin(t), sqrt(1 - z^2) = cos(t) and the integrand
+
+exp(beta (cos t - 1)) cos(k alpha sin t) cos t,  t in [-pi/2, pi/2]
+
+is entire, so Gauss-Legendre in t converges exponentially
+*/
+
 int
-ps_window_ft(size_t nk, int w, double beta, double h, double *out)
+potsynth_window_ft(const size_t nk, const int w, const double beta, const double h, double * out)
 {
   const size_t nq = 8 * (size_t) w + 100;
   const double alpha = 0.5 * w * h;
-  double *zq = malloc(nq * sizeof(double));
-  double *wq = malloc(nq * sizeof(double));
+  double * zq = malloc(nq * sizeof(double));
+  double * wq = malloc(nq * sizeof(double));
   size_t k, q;
 
   if (!zq || !wq)
     {
       free(zq);
       free(wq);
-      return POTSYNTH_ENOMEM;
+      POTSYNTH_ERROR ("unable to allocate quadrature arrays", POTSYNTH_ENOMEM);
     }
 
-  ps_gauss_legendre(nq, zq, wq);
+  potsynth_gauss_legendre(nq, zq, wq);
 
   for (q = 0; q < nq; ++q)
     {
@@ -136,5 +179,6 @@ ps_window_ft(size_t nk, int w, double beta, double h, double *out)
 
   free(zq);
   free(wq);
+
   return POTSYNTH_SUCCESS;
 }

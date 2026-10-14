@@ -18,9 +18,10 @@ _THETA_OPS = {"P": _lib.THETA_P, "dP": _lib.THETA_DP, "Psin": _lib.THETA_PSIN}
 class PotsynthError(RuntimeError):
     """Error reported by the potsynth library."""
 
-    def __init__(self, status, what=""):
+    def __init__(self, status, what="", reason=""):
         self.status = status
-        super().__init__(f"{what}{': ' if what else ''}{_lib.strerror(status)}")
+        detail = f"{reason} ({_lib.strerror(status)})" if reason else _lib.strerror(status)
+        super().__init__(f"{what}{': ' if what else ''}{detail}")
 
 
 class DomainError(PotsynthError, ValueError):
@@ -29,15 +30,17 @@ class DomainError(PotsynthError, ValueError):
 
 
 def _raise(status, what):
+    """Raise the first error recorded by the library error handler (or status)."""
+    status, reason = _lib.last_error(status)
     if status == _lib.POTSYNTH_EDOM:
-        raise DomainError(status, what)
-    raise PotsynthError(status, what)
+        raise DomainError(status, what, reason)
+    raise PotsynthError(status, what, reason)
 
 
-def ncoef(lmin, lmax, mmax=None):
+def nlm(lmin, lmax, mmax=None):
     """Length of a coefficient vector for degrees lmin..lmax and orders up to mmax."""
     mmax = lmax if mmax is None else mmax
-    return int(lib.potsynth_ncoef(lmin, lmax, mmax))
+    return int(lib.potsynth_nlm(lmin, lmax, mmax))
 
 
 def idx(n, m, lmin, mmax):
@@ -63,7 +66,7 @@ def coef_vector(C, S, lmin=None, lmax=None, mmax=None):
     lmax = L if lmax is None else lmax
     lmin = (0 if C[0, 0] != 0.0 else 1) if lmin is None else lmin
     mmax = lmax if mmax is None else mmax
-    out = np.zeros(ncoef(lmin, lmax, mmax))
+    out = np.zeros(nlm(lmin, lmax, mmax))
     for n in range(lmin, lmax + 1):
         M = min(n, mmax)
         out[idx(n, 0, lmin, mmax)] = C[n, 0]
@@ -90,8 +93,7 @@ class Channel:
 
 
 def _params(eps, method, nthreads, sigma, w, rank_tol):
-    p = _lib.Params_t()
-    lib.potsynth_params_init(ctypes.byref(p))
+    p = lib.potsynth_default_parameters()
     p.eps = eps
     p.method = _METHODS[method]
     p.nthreads = nthreads
@@ -107,7 +109,8 @@ class _Evaluator:
     def __init__(self, ptr, nchan, chunk):
         self._ptr = ptr
         self._nchan = nchan
-        self._ew = lib.potsynth_eval_alloc(ptr, chunk)
+        _lib.clear_error()
+        self._ew = lib.potsynth_eval_alloc(chunk, ptr)
         self._lock = threading.Lock()      # one eval workspace per object
         if not self._ew:
             lib.potsynth_free(ptr)
@@ -132,8 +135,8 @@ class _Evaluator:
         out = np.empty((self._nchan, r.size))
         ptr = lambda a: a.ctypes.data_as(_lib.c_double_p)
         with self._lock:
-            status = lib.potsynth_eval(self._ptr, self._ew, r.size, ptr(r), ptr(theta), ptr(phi),
-                                       ptr(out))
+            _lib.clear_error()
+            status = lib.potsynth_eval(r.size, ptr(r), ptr(theta), ptr(phi), ptr(out), self._ew)
         if status:
             _raise(status, "potsynth_eval")
         return out.reshape((self._nchan,) + shape)
@@ -142,7 +145,7 @@ class _Evaluator:
     def info(self):
         """Parameters chosen at set-up (method, window width, radial rank, grid size...)."""
         i = _lib.Info_t()
-        lib.potsynth_get_info(self._ptr, ctypes.byref(i))
+        lib.potsynth_get_info(ctypes.byref(i), self._ptr)
         d = {name: getattr(i, name) for name, _ in _lib.Info_t._fields_}
         d["method"] = _METHOD_NAMES.get(d["method"], d["method"])
         return d
@@ -154,7 +157,7 @@ class Model(_Evaluator):
     Parameters
     ----------
     coef : 1-D array, 4-pi fully normalised coefficients in the layout of idx()
-           (see coef_vector()), length ncoef(lmin, lmax, mmax)
+           (see coef_vector()), length nlm(lmin, lmax, mmax)
     lmin, lmax, mmax : degree range and maximum order (mmax defaults to lmax)
     channels : list of Channel
     a : reference radius (same unit as r)
@@ -173,8 +176,8 @@ class Model(_Evaluator):
                  method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0):
         mmax = lmax if mmax is None else mmax
         coef = np.ascontiguousarray(coef, dtype=float)
-        if coef.size != ncoef(lmin, lmax, mmax):
-            raise ValueError(f"coef has length {coef.size}, expected {ncoef(lmin, lmax, mmax)}")
+        if coef.size != nlm(lmin, lmax, mmax):
+            raise ValueError(f"coef has length {coef.size}, expected {nlm(lmin, lmax, mmax)}")
         if lmax > _lib.LMAX:
             raise ValueError(f"lmax > {_lib.LMAX} is not supported")
 
@@ -192,12 +195,11 @@ class Model(_Evaluator):
                 chans[i].rfac = rf.ctypes.data_as(_lib.c_double_p)
 
         p = _params(eps, method, nthreads, sigma, w, rank_tol)
-        status = ctypes.c_int(0)
+        _lib.clear_error()
         ptr = lib.potsynth_alloc(lmin, lmax, mmax, coef.ctypes.data_as(_lib.c_double_p), a,
-                                 rmin, rmax, len(channels), chans, ctypes.byref(p),
-                                 ctypes.byref(status))
+                                 rmin, rmax, len(channels), chans, ctypes.byref(p))
         if not ptr:
-            _raise(status.value, "potsynth_alloc")
+            _raise(_lib.POTSYNTH_EINVAL, "potsynth_alloc")
         super().__init__(ptr, len(channels), chunk)
 
     def __call__(self, r, theta, phi):

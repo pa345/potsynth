@@ -1,148 +1,329 @@
 /*
- * test_alf.c -- compare the potsynth Legendre column recursion with
- * gsl_sf_alf_vsh_array() (optional GSL oracle)
- *
- * Errors are measured relative to the largest value over all (l,m) (columns lying
- * entirely below ~1e-300 are irrelevant), with a tolerance proportional to
- * eps*L^2: near the poles the three-term
- * recursion accumulates rounding errors at that rate, in both GSL and potsynth
- * (checked separately against 60-digit references).
- *
- * At high degree GSL underflows to exactly zero where potsynth's scaled columns
- * still hold the correct value (Holmes-Featherstone region); those entries are
- * counted but not treated as failures.
- *
- * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
+ * test_alf.c
  */
 
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
+/*
+test_alf_ref()
+  Long double 4-pi P(l,m), dP/dtheta and P/sin by the standard unscaled
+recursions (adequate for lmax <= 185: no underflow in long double)
 
-#include <gsl/gsl_sf_alf.h>
+Inputs: lmax  - maximum degree
+        theta - colatitude
+        P     - (output) P(l,m), M-major
+        D     - (output) dP(l,m)/dtheta, M-major
+        PS    - (output) P(l,m)/sin(theta), M-major
+*/
 
-#include "potsynth_internal.h"
+static void
+test_alf_ref(const size_t lmax, const long double theta, long double * P, long double * D,
+             long double * PS)
+{
+  const long double x = cosl(theta);
+  const long double s = sinl(theta);
+  long double pmm = 1.0L, dmm = 0.0L, qmm = 0.0L; /* P(m,m), dP(m,m), P(m,m)/s */
+  size_t m, l;
 
-static int nfail = 0;
+  for (m = 0; m <= lmax; ++m)
+    {
+      long double p1, p2 = 0.0L, d1, d2 = 0.0L, q1, q2 = 0.0L;
 
+      if (m == 1)
+        {
+          pmm = sqrtl(3.0L) * s;
+          dmm = sqrtl(3.0L) * x;
+          qmm = sqrtl(3.0L);
+        }
+      else if (m >= 2)
+        {
+          const long double f = sqrtl(1.0L + 0.5L / m);
+
+          dmm = f * (s * dmm + x * pmm);
+          pmm *= f * s;
+          qmm *= f * s;
+        }
+
+      p1 = pmm;
+      d1 = dmm;
+      q1 = qmm;
+
+      for (l = m; l <= lmax; ++l)
+        {
+          const size_t idx = potsynth_alf_idx(l, m, lmax);
+
+          if (l > m)
+            {
+              long double p, d, q;
+
+              if (l == m + 1)
+                {
+                  const long double c = sqrtl(2.0L * m + 3.0L);
+
+                  p = c * x * p1;
+                  d = c * (x * d1 - s * p1);
+                  q = c * x * q1;
+                }
+              else
+                {
+                  const long double a = sqrtl((2.0L * l + 1) * (2.0L * l - 1) /
+                                              ((long double) (l + m) * (l - m)));
+                  const long double b = -sqrtl((long double) (l + m - 1) * (l - m - 1) * (2.0L * l + 1) /
+                                               ((long double) (l + m) * (l - m) * (2.0L * l - 3)));
+
+                  p = a * x * p1 + b * p2;
+                  d = a * (x * d1 - s * p1) + b * d2;
+                  q = a * x * q1 + b * q2;
+                }
+
+              p2 = p1;
+              d2 = d1;
+              q2 = q1;
+              p1 = p;
+              d1 = d;
+              q1 = q;
+            }
+
+          P[idx] = p1;
+          D[idx] = d1;
+          PS[idx] = q1;
+        }
+    }
+}
+
+/* unscale a column value: v * s^p * 2^scale */
 static double
-unscale(double v, double s, size_t p, int scale)
+test_alf_unscale(const double v, const double s, const size_t p, const int scale)
 {
   double mant;
   int expo;
 
-  ps_pow_scaled(s, p, &mant, &expo);
+  potsynth_pow_scaled(s, p, &mant, &expo);
+
   return ldexp(v * mant, expo + scale);
 }
 
+/*
+test_alf_columns()
+  Compare the scaled columns with the long double reference at lmax = 185,
+at and near the poles; errors are relative to the largest value of each
+quantity (near the poles the recursion error grows like eps * L^2)
+*/
+
 static void
-check(size_t lmax, double theta)
+test_alf_columns(void)
 {
-  const double x = cos(theta);
-  const double tol = 1e-14 + 5e-17 * (lmax + 1.0) * (lmax + 1.0);
-  const size_t asize = gsl_sf_alf_array_size(lmax, lmax);
-  double *gP = malloc(asize * sizeof(double));
-  double *gdP = malloc(asize * sizeof(double));
-  double *Q = malloc((lmax + 1) * PS_NB * sizeof(double));
-  double *E = malloc((lmax + 1) * PS_NB * sizeof(double));
-  double *P = malloc((lmax + 1) * sizeof(double));
-  double *D = malloc((lmax + 1) * sizeof(double));
-  double xv[PS_NB], sv[PS_NB];
-  double maxerr = 0.0;
-  size_t nunder = 0, nbad = 0;
-  ps_alf alf;
-  size_t j, l, m;
-  int status;
+  const size_t L = 185;
+  const size_t nlm = (L + 1) * (L + 2) / 2;
+  const double thetas[] = { 0.0, 1.0e-300, 1.0e-8, 0.05, 0.3, 1.2, M_PI / 2.0, 2.5,
+                            M_PI - 1.0e-6, M_PI };
+  long double * P = malloc(nlm * sizeof(long double));
+  long double * D = malloc(nlm * sizeof(long double));
+  long double * PS = malloc(nlm * sizeof(long double));
+  double * Q = malloc((L + 1) * POTSYNTH_NB * sizeof(double));
+  double * E = malloc((L + 1) * POTSYNTH_NB * sizeof(double));
+  potsynth_alf_workspace * w = potsynth_alf_alloc(L);
+  size_t it, j, m, l;
 
-  gsl_sf_alf_precompute(GSL_SF_ALF_FOURPI, lmax, lmax, 0, gP);
-  gsl_sf_alf_vsh_array(lmax, lmax, x, gP, gdP);
-
-  status = ps_alf_init(&alf, lmax);
-  if (status != POTSYNTH_SUCCESS)
+  for (it = 0; it < sizeof(thetas) / sizeof(thetas[0]); ++it)
     {
-      printf("FAIL ps_alf_init lmax=%zu: %s\n", lmax, potsynth_strerror(status));
-      ++nfail;
-      free(gP); free(gdP); free(Q); free(E); free(P); free(D);
-      return;
-    }
+      const double theta = thetas[it];
+      double x[POTSYNTH_NB], s[POTSYNTH_NB];
+      double scP = 1.0, scD = 1.0, scS = 1.0;
+      double errP = 0.0, errD = 0.0, errS = 0.0;
+      int nbad = 0;
 
-  /* GSL uses u = sqrt(1-x^2) >= 0; for theta in [0,pi] this equals sin(theta) */
-  for (j = 0; j < PS_NB; ++j)
-    {
-      xv[j] = x;
-      sv[j] = sqrt((1.0 - x) * (1.0 + x));
-    }
+      test_alf_ref(L, (long double) theta, P, D, PS);
 
-  /* global magnitudes (GSL values are reliable where they are large) */
-  {
-    double pmax = 1.0, dmax = 1.0;
-    double perr = 0.0, derr = 0.0;
-
-    for (m = 0; m <= lmax; ++m)
-      for (l = m; l <= lmax; ++l)
+      for (j = 0; j < POTSYNTH_NB; ++j)
         {
-          const size_t gi = gsl_sf_alf_array_index(l, m, lmax);
-          pmax = fmax(pmax, fabs(gP[gi]));
-          dmax = fmax(dmax, fabs(gdP[gi]));
+          x[j] = cos(theta);
+          s[j] = sin(theta);
         }
 
-    for (m = 0; m <= lmax; ++m)
+      for (m = 0; m <= L; ++m)
+        {
+          for (l = m; l <= L; ++l)
+            {
+              const size_t idx = potsynth_alf_idx(l, m, L);
+
+              scP = fmax(scP, (double) fabsl(P[idx]));
+              scD = fmax(scD, (double) fabsl(D[idx]));
+              if (m > 0)
+                scS = fmax(scS, (double) fabsl(PS[idx]));
+            }
+        }
+
+      for (m = 0; m <= L; ++m)
+        {
+          potsynth_alf_column(m, x, s, Q, E, w);
+
+          for (l = m; l <= L; ++l)
+            {
+              const size_t idx = potsynth_alf_idx(l, m, L);
+              const double q = Q[(l - m) * POTSYNTH_NB];
+              const double e = E[(l - m) * POTSYNTH_NB];
+              double p, d;
+
+              if (m == 0)
+                {
+                  p = q;
+                  d = e;
+                }
+              else
+                {
+                  const double ps = test_alf_unscale(q, s[0], m - 1, w->scale[m]);
+
+                  p = test_alf_unscale(q, s[0], m, w->scale[m]);
+                  d = test_alf_unscale(e, s[0], m - 1, w->scale[m]);
+                  errS = fmax(errS, (double) fabsl(ps - PS[idx]) / scS);
+
+                  if (!isfinite(ps))
+                    ++nbad;
+                }
+
+              if (!isfinite(p) || !isfinite(d))
+                ++nbad;
+
+              errP = fmax(errP, (double) fabsl(p - P[idx]) / scP);
+              errD = fmax(errD, (double) fabsl(d - D[idx]) / scD);
+            }
+        }
+
+      ps_test(nbad, "alf: columns L=%zu theta=%g finite", L, theta);
+      ps_test(errP > 2.0e-12, "alf: P L=%zu theta=%g (error %.2e)", L, theta, errP);
+      ps_test(errD > 2.0e-12, "alf: dP/dtheta L=%zu theta=%g (error %.2e)", L, theta, errD);
+      ps_test(errS > 2.0e-12, "alf: P/sin L=%zu theta=%g (error %.2e)", L, theta, errS);
+    }
+
+  /* analytic values at the north pole: P(l,0) = sqrt(2l+1), P(l,1)/sin = sqrt((2l+1) l (l+1) / 2) */
+  {
+    double x[POTSYNTH_NB], s[POTSYNTH_NB];
+
+    for (j = 0; j < POTSYNTH_NB; ++j)
       {
-        /* GSL's diagonal seed P(m,m) is subnormal (precision lost) or zero:
-         * the whole GSL column is unreliable there (verified against mpmath) */
-        const int gsl_lost = fabs(gP[gsl_sf_alf_array_index(m, m, lmax)]) < 1e-290;
-
-        ps_alf_column(&alf, m, xv, sv, Q, E);
-
-        for (l = m; l <= lmax; ++l)
-          {
-            const size_t gi = gsl_sf_alf_array_index(l, m, lmax);
-
-            P[l] = Q[(l - m) * PS_NB];
-            D[l] = E[(l - m) * PS_NB];
-            if (m > 0)
-              {
-                P[l] = unscale(P[l], sv[0], m - 1, alf.scale[m]);
-                D[l] = unscale(D[l], sv[0], m - 1, alf.scale[m]);
-              }
-
-            if (!isfinite(P[l]) || !isfinite(D[l]))
-              ++nbad;
-
-            if (gsl_lost)
-              {
-                ++nunder;         /* GSL underflow */
-                continue;
-              }
-
-            perr = fmax(perr, fabs(P[l] - gP[gi]));
-            derr = fmax(derr, fabs(D[l] - gdP[gi]));
-          }
+        x[j] = 1.0;
+        s[j] = 0.0;
       }
 
-    maxerr = fmax(perr / pmax, derr / dmax);
+    potsynth_alf_column(0, x, s, Q, E, w);
+    for (l = 0; l <= L; ++l)
+      ps_test_rel(Q[l * POTSYNTH_NB], sqrt(2.0 * l + 1.0), 5.0e-13, "alf: pole P(%zu,0)", l);
+
+    potsynth_alf_column(1, x, s, Q, E, w);
+    for (l = 1; l <= L; ++l)
+      ps_test_rel(ldexp(Q[(l - 1) * POTSYNTH_NB], w->scale[1]),
+                  sqrt((2.0 * l + 1.0) * l * (l + 1.0) / 2.0), 5.0e-13, "alf: pole P(%zu,1)/sin", l);
   }
 
-  printf("lmax=%5zu theta=%-10.4g max err %.2e (tol %.1e)  gsl-underflow %7zu  %s\n",
-         lmax, theta, maxerr, tol, nunder, (maxerr <= tol && nbad == 0) ? "ok" : "FAIL");
-  if (!(maxerr <= tol) || nbad)
-    ++nfail;
-
-  ps_alf_free(&alf);
-  free(gP); free(gdP); free(Q); free(E); free(P); free(D);
+  potsynth_alf_free(w);
+  free(P);
+  free(D);
+  free(PS);
+  free(Q);
+  free(E);
 }
 
-int
-main(void)
+/* column scaling: none below L ~ 1370, active at 2190, supported up to POTSYNTH_LMAX */
+static void
+test_alf_scale(void)
 {
-  const size_t lmaxs[] = { 0, 1, 2, 13, 185, 720, 2190, 2700 };
-  const double thetas[] = { 0.0, 1e-300, 1e-8, 1e-3, 0.01, 0.4, M_PI / 2, 2.0, M_PI - 1e-6, M_PI };
-  size_t i, j;
+  potsynth_alf_workspace * w;
+  size_t m;
+  int nscaled;
 
-  for (i = 0; i < sizeof(lmaxs) / sizeof(lmaxs[0]); ++i)
-    for (j = 0; j < sizeof(thetas) / sizeof(thetas[0]); ++j)
-      check(lmaxs[i], thetas[j]);
+  w = potsynth_alf_alloc(1300);
+  nscaled = 0;
+  for (m = 0; m <= 1300; ++m)
+    nscaled += (w->scale[m] > 0);
+  ps_test_int(nscaled, 0, "alf: no column scaling at L=1300");
+  potsynth_alf_free(w);
 
-  printf("%s\n", nfail ? "FAILED" : "all passed");
-  return nfail != 0;
+  w = potsynth_alf_alloc(2190);
+  nscaled = 0;
+  for (m = 0; m <= 2190; ++m)
+    nscaled += (w->scale[m] > 0);
+  ps_test(nscaled == 0, "alf: column scaling at L=2190");
+  potsynth_alf_free(w);
+
+  w = potsynth_alf_alloc(POTSYNTH_LMAX);
+  ps_test(w == NULL, "alf: allocation at POTSYNTH_LMAX");
+  if (w)
+    potsynth_alf_free(w);
+
+  w = potsynth_alf_alloc(POTSYNTH_LMAX + 100);
+  ps_test(w != NULL, "alf: allocation beyond POTSYNTH_LMAX must fail");
+  ps_test_int(test_last_error(), POTSYNTH_EUNSUP, "alf: beyond POTSYNTH_LMAX error code");
+}
+
+/* potsynth_alf_accum() against long double sums, random sizes and start indices */
+static void
+test_alf_accum(void)
+{
+  double maxerr = 0.0;
+  size_t trial;
+
+  for (trial = 0; trial < 200; ++trial)
+    {
+      const size_t nn = 1 + (size_t) (test_urand() * 60);
+      const size_t npair = 1 + (size_t) (test_urand() * 5);
+      const size_t ldw = nn + 3;
+      double * W = malloc(2 * npair * ldw * sizeof(double));
+      double * Q = malloc(nn * POTSYNTH_NB * sizeof(double));
+      double * E = malloc(nn * POTSYNTH_NB * sizeof(double));
+      double * acc = malloc(4 * npair * POTSYNTH_NB * sizeof(double));
+      unsigned char * src = malloc(npair);
+      size_t * n0 = malloc(npair * sizeof(size_t));
+      size_t i, k, j, l;
+
+      for (i = 0; i < 2 * npair * ldw; ++i)
+        W[i] = 2.0 * test_urand() - 1.0;
+
+      for (i = 0; i < nn * POTSYNTH_NB; ++i)
+        {
+          Q[i] = 2.0 * test_urand() - 1.0;
+          E[i] = 2.0 * test_urand() - 1.0;
+        }
+
+      for (k = 0; k < npair; ++k)
+        {
+          src[k] = test_urand() < 0.5;
+          n0[k] = (size_t) (test_urand() * (nn + 1)); /* includes n0 = nn (empty) */
+        }
+
+      potsynth_alf_accum(nn, npair, W, ldw, src, n0, Q, E, acc);
+
+      for (k = 0; k < npair; ++k)
+        {
+          for (j = 0; j < POTSYNTH_NB; ++j)
+            {
+              const double * V = src[k] ? E : Q;
+              long double ref[4] = { 0.0L, 0.0L, 0.0L, 0.0L };
+
+              for (l = n0[k]; l < nn; ++l)
+                {
+                  ref[0 + (l & 1)] += (long double) W[2 * k * ldw + l] * V[l * POTSYNTH_NB + j];
+                  ref[2 + (l & 1)] += (long double) W[(2 * k + 1) * ldw + l] * V[l * POTSYNTH_NB + j];
+                }
+
+              for (i = 0; i < 4; ++i)
+                maxerr = fmax(maxerr, (double) fabsl(acc[(4 * k + i) * POTSYNTH_NB + j] - ref[i]));
+            }
+        }
+
+      free(W);
+      free(Q);
+      free(E);
+      free(acc);
+      free(src);
+      free(n0);
+    }
+
+  ps_test(maxerr > 1.0e-13, "alf: accumulation kernel (error %.2e)", maxerr);
+}
+
+static void
+test_alf(void)
+{
+  test_alf_columns();
+  test_alf_scale();
+  test_alf_accum();
 }

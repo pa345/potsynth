@@ -7,7 +7,7 @@ import numpy as np
 
 from . import _lib
 from ._lib import lib
-from .core import _Evaluator, _params, _raise, coef_vector, ncoef
+from .core import _Evaluator, _params, _raise, coef_vector, nlm
 
 
 class MagModel(_Evaluator):
@@ -40,21 +40,21 @@ class MagModel(_Evaluator):
             gh = np.asarray(gh, dtype=float)
             if lmax is None:
                 lmax = lmin
-                while ncoef(lmin, lmax, lmax) < gh.size:
+                while nlm(lmin, lmax, lmax) < gh.size:
                     lmax += 1
             mmax = lmax if mmax is None else mmax
         gh = np.ascontiguousarray(gh, dtype=float)
-        if gh.size != ncoef(lmin, lmax, mmax):
-            raise ValueError(f"gh has length {gh.size}, expected {ncoef(lmin, lmax, mmax)}")
+        if gh.size != nlm(lmin, lmax, mmax):
+            raise ValueError(f"gh has length {gh.size}, expected {nlm(lmin, lmax, mmax)}")
         if lmax > _lib.LMAX:
             raise ValueError(f"lmax > {_lib.LMAX} is not supported")
 
         p = _params(eps, method, nthreads, sigma, w, rank_tol)
-        status = ctypes.c_int(0)
+        _lib.clear_error()
         ptr = lib.potsynth_mag_alloc(lmin, lmax, mmax, gh.ctypes.data_as(_lib.c_double_p), a,
-                                     rmin, rmax, ctypes.byref(p), ctypes.byref(status))
+                                     rmin, rmax, ctypes.byref(p))
         if not ptr:
-            _raise(status.value, "potsynth_mag_alloc")
+            _raise(_lib.POTSYNTH_EINVAL, "potsynth_mag_alloc")
         super().__init__(ptr, 3, chunk)
 
     def __call__(self, r, theta, phi):

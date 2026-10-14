@@ -16,18 +16,18 @@ Typical use
 
    #include <potsynth_mag.h>
 
-   potsynth_params p;
-   potsynth_params_init(&p);                /* defaults */
-   p.eps = 1e-10;                           /* requested accuracy */
-
+   potsynth_parameters params = potsynth_default_parameters();
+   potsynth_workspace * w;
+   potsynth_eval_workspace * ew;
    int status;
-   potsynth_workspace *w =
-     potsynth_mag_alloc(1, L, L, gh, 6371.2, rmin, rmax, &p, &status);
-   if (!w) { /* potsynth_strerror(status) */ }
 
-   potsynth_eval_workspace *ew = potsynth_eval_alloc(w, 0);
-   status = potsynth_eval(w, ew, n, r, theta, phi, B);   /* B: 3*n doubles */
+   params.eps = 1.0e-10;                        /* requested accuracy */
+
+   w = potsynth_mag_alloc(1, lmax, lmax, gh, 6371.2, rmin, rmax, &params);
+   ew = potsynth_eval_alloc(0, w);
+
    /* B[0..n) = B_r, B[n..2n) = B_theta, B[2n..3n) = B_phi */
+   status = potsynth_eval(n, r, theta, phi, B, ew);
 
    potsynth_eval_free(ew);
    potsynth_free(w);
@@ -39,8 +39,8 @@ The library uses two opaque objects:
 
 .. c:type:: potsynth_workspace
 
-   Holds everything that depends on the model: coefficients, radial basis, grids. It
-   is built by :c:func:`potsynth_alloc` or :c:func:`potsynth_mag_alloc` and is
+   Holds everything that depends on the model: coefficients, radial basis, grids.
+   It is built by :c:func:`potsynth_alloc` or :c:func:`potsynth_mag_alloc` and is
    read-only afterwards, so any number of threads can share it.
 
 .. c:type:: potsynth_eval_workspace
@@ -48,32 +48,81 @@ The library uses two opaque objects:
    Scratch space for evaluation: point sorting and per-thread buffers. Each thread
    that calls :c:func:`potsynth_eval` at the same time as others needs its own.
 
-Evaluation never allocates memory. All allocation happens in the ``*_alloc`` functions.
-Within one call, :c:func:`potsynth_eval` uses the number of OpenMP threads set in the
-parameters.
+Evaluation never allocates memory. All allocation happens in the ``*_alloc``
+functions. Within one call, :c:func:`potsynth_eval` uses the number of OpenMP
+threads given in the parameters.
+
+Errors
+======
+
+Errors are reported in the same way as in GSL. Every function that detects an
+error calls the current error handler, then returns an error code or ``NULL``.
+Unlike GSL, the default handler does not abort. It prints a message such as::
+
+   potsynth: src/eval.c:181: ERROR: theta outside [0,pi], ... (evaluation point outside the valid domain)
+
+to ``stderr`` and lets the function return.
+
+.. c:type:: potsynth_error_handler_t
+
+   ``void potsynth_error_handler_t(const char * reason, const char * file, int line, int potsynth_errno)``
+
+.. c:function:: potsynth_error_handler_t * potsynth_set_error_handler(potsynth_error_handler_t * new_handler)
+
+   Installs a new error handler and returns the previous one.
+
+.. c:function:: potsynth_error_handler_t * potsynth_set_error_handler_off(void)
+
+   Disables error messages. Functions still return error codes or ``NULL``.
+
+.. c:function:: const char * potsynth_strerror(const int potsynth_errno)
+
+   Returns a short description of an error code.
+
+The error codes are:
+
+.. c:macro:: POTSYNTH_SUCCESS
+
+   0: success.
+
+.. c:macro:: POTSYNTH_EINVAL
+
+   An argument is invalid.
+
+.. c:macro:: POTSYNTH_ENOMEM
+
+   A memory allocation failed.
+
+.. c:macro:: POTSYNTH_EDOM
+
+   An evaluation point is outside the valid domain.
+
+.. c:macro:: POTSYNTH_EUNSUP
+
+   The option is not supported, for example :math:`L >` :c:macro:`POTSYNTH_LMAX`.
 
 Coefficient layout
 ==================
 
 Coefficients are passed as a single vector, using the same convention as mainlib's
-``green2``. For degrees :math:`n_0 \le n \le L` and orders
-:math:`|m| \le \min(n, M)` the order is
+``green2``. For degrees :math:`l_{min} \le l \le l_{max}` and orders
+:math:`|m| \le \min(l, m_{max})` the order is
 
 .. code-block:: text
 
-   [ (n0,-M0) ... (n0,M0)  (n0+1,-M1) ... (n0+1,M1)  ...  (L,-ML) ... (L,ML) ]
+   [ (lmin,-M) ... (lmin,M)  (lmin+1,-M') ... (lmin+1,M')  ...  (lmax,M'') ]
 
-Entry :math:`(n, m)` with :math:`m \ge 0` holds the cosine coefficient
-(:math:`C_{nm}` or :math:`g_n^m`). Entry :math:`(n, -m)` holds the sine coefficient
-(:math:`S_{nm}` or :math:`h_n^m`). The layout is read only once, during set-up.
+Entry :math:`(l, m)` with :math:`m \ge 0` holds the cosine coefficient
+(:math:`C_{lm}` or :math:`g_l^m`). Entry :math:`(l, -m)` holds the sine coefficient
+(:math:`S_{lm}` or :math:`h_l^m`). The layout is read only once, during set-up.
 Internally the library reorders everything to match its recursions.
 
-.. c:macro:: POTSYNTH_IDX(n, m, lmin, mmax)
+.. c:macro:: potsynth_idx(l, m, lmin, mmax)
 
-   Index of coefficient :math:`(n, m)` in the vector, with :math:`-\min(n,M) \le m \le
-   \min(n,M)`. The arguments should be signed integers.
+   Index of coefficient :math:`(l, m)` in the vector, with
+   :math:`-\min(l,m_{max}) \le m \le \min(l,m_{max})`. Pass signed integers.
 
-.. c:function:: size_t potsynth_ncoef(size_t lmin, size_t lmax, size_t mmax)
+.. c:function:: size_t potsynth_nlm(const size_t lmin, const size_t lmax, const size_t mmax)
 
    Length of the coefficient vector.
 
@@ -81,42 +130,13 @@ Internally the library reorders everything to match its recursions.
 
    Largest supported degree (2800).
 
-Status codes
-============
-
-All functions that can fail return, or store in ``*status``, one of:
-
-.. c:enumerator:: POTSYNTH_SUCCESS
-
-   0: success.
-
-.. c:enumerator:: POTSYNTH_EINVAL
-
-   An argument is invalid.
-
-.. c:enumerator:: POTSYNTH_ENOMEM
-
-   A memory allocation failed.
-
-.. c:enumerator:: POTSYNTH_EDOM
-
-   An evaluation point is outside the valid domain.
-
-.. c:enumerator:: POTSYNTH_EUNSUP
-
-   The option is not supported, for example :math:`L >` :c:macro:`POTSYNTH_LMAX`.
-
-.. c:function:: const char *potsynth_strerror(int status)
-
-   A short description of a status code.
-
 Parameters
 ==========
 
-.. c:struct:: potsynth_params
+.. c:struct:: potsynth_parameters
 
-   Always initialize with :c:func:`potsynth_params_init` before setting fields. A
-   ``NULL`` pointer in place of the parameters means all defaults.
+   Get the defaults from :c:func:`potsynth_default_parameters` and change fields as
+   needed. A ``NULL`` pointer in place of the parameters means all defaults.
 
    .. c:member:: double eps
 
@@ -124,10 +144,10 @@ Parameters
       :math:`10^{-10}`. Any value from about :math:`10^{-4}` down to
       :math:`5 \times 10^{-15}` (the double-precision floor) is meaningful.
 
-   .. c:member:: potsynth_method method
+   .. c:member:: int method
 
-      :c:enumerator:`POTSYNTH_METHOD_AUTO` (default),
-      :c:enumerator:`POTSYNTH_METHOD_FAST` or :c:enumerator:`POTSYNTH_METHOD_DIRECT`.
+      :c:macro:`POTSYNTH_METHOD_AUTO` (default),
+      :c:macro:`POTSYNTH_METHOD_FAST` or :c:macro:`POTSYNTH_METHOD_DIRECT`.
 
    .. c:member:: int nthreads
 
@@ -145,29 +165,27 @@ Parameters
 
       Tolerance of the radial SVD; 0 means :math:`0.1\,\varepsilon`.
 
-.. c:function:: void potsynth_params_init(potsynth_params *params)
+.. c:function:: potsynth_parameters potsynth_default_parameters(void)
 
-   Fills ``params`` with the default values.
+   Returns the default parameters.
 
-.. c:enum:: potsynth_method
+.. c:macro:: POTSYNTH_METHOD_AUTO
 
-   .. c:enumerator:: POTSYNTH_METHOD_AUTO
+   Use the fast method for :math:`l_{max} \ge 24` and the direct method otherwise.
 
-      Use the fast method for :math:`L \ge 24` and the direct method otherwise.
+.. c:macro:: POTSYNTH_METHOD_FAST
 
-   .. c:enumerator:: POTSYNTH_METHOD_FAST
+   Gridded transform (see :ref:`algorithm`). Needs the radial range
+   :math:`[r_{min}, r_{max}]` of the points.
 
-      Gridded transform (see :ref:`algorithm`). Needs the radial range
-      :math:`[r_{\min}, r_{\max}]` of the points.
+.. c:macro:: POTSYNTH_METHOD_DIRECT
 
-   .. c:enumerator:: POTSYNTH_METHOD_DIRECT
-
-      Point-by-point sum. Accepts any :math:`r > 0`.
+   Point-by-point sum. Accepts any :math:`r > 0`.
 
 Magnetic front-end
 ==================
 
-.. c:function:: potsynth_workspace *potsynth_mag_alloc(size_t lmin, size_t lmax, size_t mmax, const double *gh, double a, double rmin, double rmax, const potsynth_params *params, int *status)
+.. c:function:: potsynth_workspace * potsynth_mag_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const double * gh, const double a, const double rmin, const double rmax, const potsynth_parameters * params)
 
    Builds a model of :math:`\mathbf{B} = -\nabla V` for the potential
    :eq:`mag_potential`. Its three channels are :math:`B_r`, :math:`B_\theta` and
@@ -176,21 +194,20 @@ Magnetic front-end
    :param lmin: minimum degree, :math:`\ge 1`
    :param lmax: maximum degree, :math:`\le` :c:macro:`POTSYNTH_LMAX`
    :param mmax: maximum order, :math:`\le` ``lmax``
-   :param gh: Schmidt semi-normalized Gauss coefficients in nT, in the layout of
-      :c:macro:`POTSYNTH_IDX`. The array is copied.
+   :param gh: Schmidt semi-normalized Gauss coefficients in nT, indexed by
+      :c:macro:`potsynth_idx`. The array is copied.
    :param a: reference radius (km), usually 6371.2
    :param rmin: smallest radius (km) at which the model will be evaluated. Required
       by the fast method; ignored by the direct method.
    :param rmax: largest radius (km) at which the model will be evaluated, as for
       ``rmin``
    :param params: parameters, or ``NULL`` for the defaults
-   :param status: if not ``NULL``, receives the status code
-   :returns: the workspace, or ``NULL`` on failure
+   :returns: the workspace, or ``NULL`` on error (reported to the error handler)
 
-   Choose :math:`[r_{\min}, r_{\max}]` as tight as the data allow. A narrower shell
+   Choose :math:`[r_{min}, r_{max}]` as tight as the data allow. A narrower shell
    needs fewer radial functions, which makes evaluation faster.
 
-.. c:function:: void potsynth_mag_rtp2nec(size_t npts, double *B)
+.. c:function:: void potsynth_mag_rtp2nec(const size_t n, double * B)
 
    Converts output in place, from :math:`(B_r, B_\theta, B_\phi)` to
    :math:`(B_N, B_E, B_C) = (-B_\theta, B_\phi, -B_r)`.
@@ -204,58 +221,56 @@ Generic core
 
    .. c:member:: int rpow
 
-      Radial power offset :math:`p`: the term carries :math:`(a/r)^{n+p}`.
-      :math:`n_0 + p \ge 0` is required.
+      Radial power offset :math:`p`: the term carries :math:`(a/r)^{l+p}`.
+      :math:`l_{min} + p \ge 0` is required.
 
-   .. c:member:: const double *rfac
+   .. c:member:: const double * rfac
 
-      Per-degree factors :math:`\rho(n)` for :math:`n = 0 \ldots L` (length
-      :math:`L+1`), or ``NULL`` for 1. The array is copied.
+      Per-degree factors :math:`\rho(l)` for :math:`l = 0 \ldots l_{max}` (length
+      :math:`l_{max}+1`), or ``NULL`` for 1. The array is copied.
 
-   .. c:member:: potsynth_theta_op theta
+   .. c:member:: int theta
 
-      The operator in colatitude (see :c:enum:`potsynth_theta_op`).
+      The operator in colatitude: one of the ``POTSYNTH_THETA_xxx`` constants below.
 
    .. c:member:: int dphi
 
       0, or 1 to apply :math:`\partial/\partial\phi` to
       :math:`C\cos m\phi + S\sin m\phi`.
 
-.. c:enum:: potsynth_theta_op
+.. c:macro:: POTSYNTH_THETA_P
 
-   .. c:enumerator:: POTSYNTH_THETA_P
+   :math:`\bar{P}_l^m(\cos\theta)`
 
-      :math:`\bar{P}_n^m(\cos\theta)`
+.. c:macro:: POTSYNTH_THETA_DP
 
-   .. c:enumerator:: POTSYNTH_THETA_DP
+   :math:`d\bar{P}_l^m/d\theta`
 
-      :math:`d\bar{P}_n^m/d\theta`
+.. c:macro:: POTSYNTH_THETA_PSIN
 
-   .. c:enumerator:: POTSYNTH_THETA_PSIN
+   :math:`\bar{P}_l^m/\sin\theta`, computed without dividing by :math:`\sin\theta`.
+   It is defined for :math:`m \ge 1`; the :math:`m = 0` terms are omitted.
 
-      :math:`\bar{P}_n^m/\sin\theta`, computed without dividing by :math:`\sin\theta`.
-      It is defined for :math:`m \ge 1`; the :math:`m = 0` terms are omitted.
-
-.. c:function:: potsynth_workspace *potsynth_alloc(size_t lmin, size_t lmax, size_t mmax, const double *coef, double a, double rmin, double rmax, size_t nchan, const potsynth_channel *chan, const potsynth_params *params, int *status)
+.. c:function:: potsynth_workspace * potsynth_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const double * coef, const double a, const double rmin, const double rmax, const size_t nchan, const potsynth_channel * chan, const potsynth_parameters * params)
 
    Builds a model with user-defined channels.
 
-   ``coef`` holds the 4-:math:`\pi` fully normalized coefficients in the layout of
-   :c:macro:`POTSYNTH_IDX`. ``lmin`` may be 0. The remaining arguments are as for
+   ``coef`` holds the 4-:math:`\pi` fully normalized coefficients, indexed by
+   :c:macro:`potsynth_idx`. ``lmin`` may be 0. The remaining arguments are as for
    :c:func:`potsynth_mag_alloc`. All arrays are copied.
 
    For example, the magnetic front-end is equivalent to the three channels
-   ``{2, rfac=n+1, THETA_P, 0}``, ``{2, rfac=-1, THETA_DP, 0}`` and
-   ``{2, rfac=-1, THETA_PSIN, 1}``, with ``coef = gh / sqrt(2n+1)``.
+   ``{2, rfac=l+1, THETA_P, 0}``, ``{2, rfac=-1, THETA_DP, 0}`` and
+   ``{2, rfac=-1, THETA_PSIN, 1}``, with ``coef = gh / sqrt(2l+1)``.
 
-.. c:function:: void potsynth_free(potsynth_workspace *w)
+.. c:function:: void potsynth_free(potsynth_workspace * w)
 
-   Frees a workspace. ``NULL`` is allowed.
+   Frees a workspace.
 
 Evaluation
 ==========
 
-.. c:function:: potsynth_eval_workspace *potsynth_eval_alloc(const potsynth_workspace *w, size_t chunk)
+.. c:function:: potsynth_eval_workspace * potsynth_eval_alloc(const size_t chunk, const potsynth_workspace * w)
 
    Allocates scratch space for evaluating ``w``.
 
@@ -263,32 +278,32 @@ Evaluation
    262144. :c:func:`potsynth_eval` accepts any number of points regardless. The result
    does not depend on the chunk size.
 
-   Returns ``NULL`` if allocation fails.
+.. c:function:: void potsynth_eval_free(potsynth_eval_workspace * ew)
 
-.. c:function:: void potsynth_eval_free(potsynth_eval_workspace *ew)
+   Frees an evaluation workspace.
 
-   Frees an evaluation workspace. ``NULL`` is allowed.
+.. c:function:: int potsynth_eval(const size_t n, const double * r, const double * theta, const double * phi, double * out, potsynth_eval_workspace * ew)
 
-.. c:function:: int potsynth_eval(const potsynth_workspace *w, potsynth_eval_workspace *ew, size_t npts, const double *r, const double *theta, const double *phi, double *out)
+   Evaluates all channels of the model at ``n`` points.
 
-   Evaluates all channels at ``npts`` points.
-
-   :param r: geocentric radius (the same unit as ``a``)
+   :param n: number of points
+   :param r: geocentric radius (the same unit as ``a``), length ``n``
    :param theta: colatitude in radians, :math:`0 \le \theta \le \pi`. Both poles are
       valid.
    :param phi: longitude in radians; any finite value
-   :param out: output array of ``nchan * npts`` doubles, channel-major:
-      ``out[c*npts + i]``
+   :param out: output array of ``nchan * n`` doubles, channel-major:
+      ``out[c*n + i]``
+   :param ew: evaluation workspace
    :returns: a status code
 
    Error handling:
 
    - **Validation first.** All points are checked before anything is written.
-   - **Domain errors.** :c:enumerator:`POTSYNTH_EDOM` is returned, and the output left
-     untouched, if any point has :math:`\theta \notin [0,\pi]` or :math:`r \le 0`, or,
-     for the fast method, if :math:`r` lies outside :math:`[r_{\min}, r_{\max}]`.
-   - **Non-finite inputs.** A NaN or infinite coordinate is not an error; that point's
-     outputs are set to NaN.
+   - **Domain errors.** :c:macro:`POTSYNTH_EDOM` is returned, and the output left
+     untouched, if any point has :math:`\theta \notin [0,\pi]` or :math:`r \le 0`,
+     or, for the fast method, if :math:`r` lies outside :math:`[r_{min}, r_{max}]`.
+   - **Non-finite inputs.** A NaN or infinite coordinate is not an error; that
+     point's outputs are set to NaN.
 
    The results are bitwise identical for any number of threads and any chunk size.
 
@@ -297,13 +312,20 @@ Introspection
 
 .. c:struct:: potsynth_info
 
-   The parameters chosen during set-up. Its members are ``lmin``, ``lmax``,
-   ``mmax``, ``nchan``, ``method`` (the method actually selected), ``w`` and
-   ``sigma``, ``rho`` (the radial rank), ``ncheb`` (Chebyshev terms per radial
-   function), ``nf1``, ``nf2`` (fine grid size), ``nrows`` (stored rows), and
-   ``grid_bytes``. The fast-method fields are zero for the direct method.
+   The parameters chosen during set-up. Its members are:
 
-.. c:function:: int potsynth_get_info(const potsynth_workspace *w, potsynth_info *info)
+   - ``lmin``, ``lmax``, ``mmax``, ``nchan``;
+   - ``method``, the method actually selected;
+   - ``w`` and ``sigma``;
+   - ``rho``, the radial rank;
+   - ``ncheb``, the number of Chebyshev terms per radial function;
+   - ``nf1``, ``nf2``, the fine grid size;
+   - ``nrows``, the number of stored rows;
+   - ``grid_bytes``.
+
+   The fast-method fields are zero for the direct method.
+
+.. c:function:: int potsynth_get_info(potsynth_info * info, const potsynth_workspace * w)
 
    Fills ``info``.
 

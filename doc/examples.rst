@@ -19,7 +19,7 @@ separately:
 
 .. literalinclude:: ../examples/example_mag.c
    :language: c
-   :lines: 14-
+   :lines: 16-
 
 Output on 16 threads:
 

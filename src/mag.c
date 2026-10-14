@@ -1,69 +1,101 @@
 /*
- * mag.c -- magnetic front-end: B = -grad V for Schmidt semi-normalised Gauss
- * coefficients
+ * mag.c
  *
- *   B_r     = sum (n+1) (a/r)^(n+2) [g cos + h sin] P
- *   B_theta = -sum (a/r)^(n+2) [g cos + h sin] dP/dtheta
- *   B_phi   = -sum (a/r)^(n+2) d/dphi[g cos + h sin] P/sin(theta)
+ * Magnetic front-end: B = -grad V for Schmidt semi-normalized Gauss
+ * coefficients,
  *
- * Schmidt P = Pbar / sqrt(2n+1) (4-pi normalised), so Cbar = g / sqrt(2n+1).
+ * B_r     =  \sum (l+1) (a/r)^(l+2) [ g cos(m phi) + h sin(m phi) ] P_l^m
+ * B_theta = -\sum (a/r)^(l+2) [ g cos(m phi) + h sin(m phi) ] dP_l^m/dtheta
+ * B_phi   = -\sum (a/r)^(l+2) d/dphi [ g cos(m phi) + h sin(m phi) ] P_l^m / sin(theta)
  *
- * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
+ * Schmidt P_l^m = Pbar_l^m / sqrt(2l+1) (4-pi normalized), so the core
+ * coefficients are C_lm = g_l^m / sqrt(2l+1), S_lm = h_l^m / sqrt(2l+1).
+ *
+ * Copyright (C) 2026 Patrick Alken and Johnathan Burchill, BSD 3-Clause License
  */
 
-#include <math.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include "potsynth_internal.h"
 #include "potsynth_mag.h"
 
+/*
+potsynth_mag_alloc()
+  Allocate a magnetic field model, with channels (B_r, B_theta, B_phi)
+
+Inputs: lmin   - minimum SH degree (>= 1)
+        lmax   - maximum SH degree (<= POTSYNTH_LMAX)
+        mmax   - maximum SH order (<= lmax)
+        gh     - Schmidt semi-normalized Gauss coefficients (nT), indexed by
+                 potsynth_idx(l,m,lmin,mmax): g_l^m at m >= 0, h_l^m at -m;
+                 length potsynth_nlm(lmin,lmax,mmax); copied
+        a      - reference radius (km)
+        rmin   - minimum radius of evaluation points (km), fast method
+        rmax   - maximum radius of evaluation points (km), fast method
+        params - parameters, or NULL for defaults
+
+Return: pointer to workspace, or NULL on error
+
+Notes:
+1) Evaluate with potsynth_eval(); out[0*n + i] = B_r, out[1*n + i] = B_theta,
+out[2*n + i] = B_phi, in nT. All three components are finite and correct at the
+poles (B_theta and B_phi there refer to the local frame defined by phi)
+*/
+
 potsynth_workspace *
-potsynth_mag_alloc(size_t lmin, size_t lmax, size_t mmax, const double *gh, double a,
-                   double rmin, double rmax, const potsynth_params *params, int *status)
+potsynth_mag_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const double * gh,
+                   const double a, const double rmin, const double rmax,
+                   const potsynth_parameters * params)
 {
   const size_t L1 = lmax + 1;
-  const size_t ncoef = potsynth_ncoef(lmin, lmax, mmax);
   potsynth_channel chan[3];
-  potsynth_workspace *w;
-  double *coef, *rfr, *rfm;
-  size_t n, m;
+  potsynth_workspace * w;
+  double * coef, * rfac_r, * rfac_m;
+  size_t l, m;
 
-  if (lmin < 1 || lmin > lmax || mmax > lmax || !gh)
+  if (lmin < 1)
     {
-      if (status)
-        *status = POTSYNTH_EINVAL;
-      return NULL;
+      POTSYNTH_ERROR_NULL ("lmin must be >= 1", POTSYNTH_EINVAL);
+    }
+  else if (lmin > lmax)
+    {
+      POTSYNTH_ERROR_NULL ("lmin must be <= lmax", POTSYNTH_EINVAL);
+    }
+  else if (mmax > lmax)
+    {
+      POTSYNTH_ERROR_NULL ("mmax must be <= lmax", POTSYNTH_EINVAL);
+    }
+  else if (lmax > POTSYNTH_LMAX)
+    {
+      POTSYNTH_ERROR_NULL ("lmax exceeds POTSYNTH_LMAX", POTSYNTH_EUNSUP);
+    }
+  else if (gh == NULL)
+    {
+      POTSYNTH_ERROR_NULL ("gh must be given", POTSYNTH_EINVAL);
     }
 
-  if (lmax > POTSYNTH_LMAX)
-    {
-      if (status)
-        *status = POTSYNTH_EUNSUP;
-      return NULL;
-    }
-
-  coef = malloc(ncoef * sizeof(double));
-  rfr = malloc(L1 * sizeof(double));
-  rfm = malloc(L1 * sizeof(double));
-  if (!coef || !rfr || !rfm)
+  coef = malloc(potsynth_nlm(lmin, lmax, mmax) * sizeof(double));
+  rfac_r = malloc(L1 * sizeof(double));
+  rfac_m = malloc(L1 * sizeof(double));
+  if (!coef || !rfac_r || !rfac_m)
     {
       free(coef);
-      free(rfr);
-      free(rfm);
-      if (status)
-        *status = POTSYNTH_ENOMEM;
-      return NULL;
+      free(rfac_r);
+      free(rfac_m);
+      POTSYNTH_ERROR_NULL ("unable to allocate coefficients", POTSYNTH_ENOMEM);
     }
 
-  for (n = lmin; n <= lmax; ++n)
+  /* Schmidt -> 4-pi normalization */
+  for (l = lmin; l <= lmax; ++l)
     {
-      const size_t M = (n < mmax) ? n : mmax;
-      const double f = 1.0 / sqrt(2.0 * n + 1.0);
+      const size_t M = (l < mmax) ? l : mmax;
+      const double f = 1.0 / sqrt(2.0 * l + 1.0);
 
       for (m = 0; m <= M; ++m)
         {
-          const size_t ip = POTSYNTH_IDX((long) n, (long) m, (long) lmin, (long) mmax);
-          const size_t im = POTSYNTH_IDX((long) n, -(long) m, (long) lmin, (long) mmax);
+          const size_t ip = potsynth_idx((long) l, (long) m, (long) lmin, (long) mmax);
+          const size_t im = potsynth_idx((long) l, -(long) m, (long) lmin, (long) mmax);
 
           coef[ip] = f * gh[ip];
           if (m > 0)
@@ -71,35 +103,61 @@ potsynth_mag_alloc(size_t lmin, size_t lmax, size_t mmax, const double *gh, doub
         }
     }
 
-  for (n = 0; n <= lmax; ++n)
+  for (l = 0; l <= lmax; ++l)
     {
-      rfr[n] = n + 1.0;
-      rfm[n] = -1.0;
+      rfac_r[l] = l + 1.0;
+      rfac_m[l] = -1.0;
     }
 
-  chan[0].rpow = 2; chan[0].rfac = rfr; chan[0].theta = POTSYNTH_THETA_P;    chan[0].dphi = 0;
-  chan[1].rpow = 2; chan[1].rfac = rfm; chan[1].theta = POTSYNTH_THETA_DP;   chan[1].dphi = 0;
-  chan[2].rpow = 2; chan[2].rfac = rfm; chan[2].theta = POTSYNTH_THETA_PSIN; chan[2].dphi = 1;
+  /* B_r */
+  chan[0].rpow = 2;
+  chan[0].rfac = rfac_r;
+  chan[0].theta = POTSYNTH_THETA_P;
+  chan[0].dphi = 0;
 
-  w = potsynth_alloc(lmin, lmax, mmax, coef, a, rmin, rmax, 3, chan, params, status);
+  /* B_theta */
+  chan[1].rpow = 2;
+  chan[1].rfac = rfac_m;
+  chan[1].theta = POTSYNTH_THETA_DP;
+  chan[1].dphi = 0;
+
+  /* B_phi */
+  chan[2].rpow = 2;
+  chan[2].rfac = rfac_m;
+  chan[2].theta = POTSYNTH_THETA_PSIN;
+  chan[2].dphi = 1;
+
+  w = potsynth_alloc(lmin, lmax, mmax, coef, a, rmin, rmax, 3, chan, params);
 
   free(coef);
-  free(rfr);
-  free(rfm);
+  free(rfac_r);
+  free(rfac_m);
+
   return w;
 }
 
+/*
+potsynth_mag_rtp2nec()
+  Convert field components in place from (B_r, B_theta, B_phi) to
+(B_north, B_east, B_center) = (-B_theta, B_phi, -B_r)
+
+Inputs: n - number of points
+        B - field, channel-major as output by potsynth_eval(), length 3*n
+*/
+
 void
-potsynth_mag_rtp2nec(size_t npts, double *B)
+potsynth_mag_rtp2nec(const size_t n, double * B)
 {
   size_t i;
 
-  for (i = 0; i < npts; ++i)
+  for (i = 0; i < n; ++i)
     {
-      const double br = B[i], bt = B[npts + i], bp = B[2 * npts + i];
+      const double Br = B[i];
+      const double Bt = B[n + i];
+      const double Bp = B[2 * n + i];
 
-      B[i] = -bt;                 /* north  = -B_theta */
-      B[npts + i] = bp;           /* east   =  B_phi   */
-      B[2 * npts + i] = -br;      /* center = -B_r     */
+      B[i] = -Bt;
+      B[n + i] = Bp;
+      B[2 * n + i] = -Br;
     }
 }

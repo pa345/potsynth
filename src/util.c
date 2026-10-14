@@ -1,83 +1,50 @@
 /*
- * util.c -- memory, sizes, threads and small numerical helpers
+ * util.c
  *
- * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
+ * Memory, sizes, threads and small numerical helpers
+ *
+ * Copyright (C) 2026 Patrick Alken and Johnathan Burchill, BSD 3-Clause License
  */
 
-#include <math.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "potsynth_internal.h"
+#include <math.h>
 
 #ifdef _WIN32
 #include <malloc.h>
 #endif
 
-const char *
-potsynth_strerror(int status)
-{
-  switch (status)
-    {
-      case POTSYNTH_SUCCESS:
-        return "success";
-      case POTSYNTH_EINVAL:
-        return "invalid argument";
-      case POTSYNTH_ENOMEM:
-        return "memory allocation failed";
-      case POTSYNTH_EDOM:
-        return "evaluation point outside the valid domain";
-      case POTSYNTH_EUNSUP:
-        return "unsupported option";
-      default:
-        return "unknown error";
-    }
-}
+#include "potsynth_internal.h"
 
-void
-potsynth_params_init(potsynth_params *params)
-{
-  params->eps = 1.0e-10;
-  params->method = POTSYNTH_METHOD_AUTO;
-  params->sigma = 0.0;
-  params->w = 0;
-  params->rank_tol = 0.0;
-  params->nthreads = 0;
-}
+/*
+potsynth_aligned_alloc()
+  Allocate memory aligned to POTSYNTH_ALIGN bytes
 
-size_t
-potsynth_ncoef(size_t lmin, size_t lmax, size_t mmax)
-{
-  size_t n, sum = 0;
+Inputs: nbytes - number of bytes
 
-  for (n = lmin; n <= lmax; ++n)
-    {
-      size_t M = (n < mmax) ? n : mmax;
-      sum += 2 * M + 1;
-    }
-
-  return sum;
-}
+Return: pointer to memory, free with potsynth_aligned_free()
+*/
 
 void *
-ps_malloc(size_t nbytes)
+potsynth_aligned_alloc(const size_t nbytes)
 {
-  size_t size = (nbytes + PS_ALIGN - 1) / PS_ALIGN * PS_ALIGN;
+  size_t size = (nbytes + POTSYNTH_ALIGN - 1) / POTSYNTH_ALIGN * POTSYNTH_ALIGN;
 
   if (size == 0)
-    size = PS_ALIGN;
+    size = POTSYNTH_ALIGN;
 
 #ifdef _WIN32
-  return _aligned_malloc(size, PS_ALIGN);
+  return _aligned_malloc(size, POTSYNTH_ALIGN);
 #else
-  return aligned_alloc(PS_ALIGN, size);
+  return aligned_alloc(POTSYNTH_ALIGN, size);
 #endif
 }
 
+/* aligned allocation initialized to zero */
 void *
-ps_calloc(size_t nbytes)
+potsynth_aligned_calloc(const size_t nbytes)
 {
-  void *ptr = ps_malloc(nbytes);
+  void * ptr = potsynth_aligned_alloc(nbytes);
 
   if (ptr)
     memset(ptr, 0, nbytes);
@@ -86,7 +53,7 @@ ps_calloc(size_t nbytes)
 }
 
 void
-ps_free(void *ptr)
+potsynth_aligned_free(void * ptr)
 {
 #ifdef _WIN32
   _aligned_free(ptr);
@@ -95,16 +62,21 @@ ps_free(void *ptr)
 #endif
 }
 
-/* smallest n' >= n which is a multiple of mult and has no prime factors other than 2, 3, 5 */
+/*
+potsynth_next_smooth()
+  Return smallest n' >= n which is a multiple of mult and has no prime
+factors other than 2, 3, 5 (fast FFT length)
+
+Inputs: n    - minimum length
+        mult - required multiple
+*/
+
 size_t
-ps_next_smooth(size_t n, size_t mult)
+potsynth_next_smooth(const size_t n, const size_t mult)
 {
   size_t k;
 
-  if (n < 1)
-    n = 1;
-
-  for (k = (n + mult - 1) / mult * mult; ; k += mult)
+  for (k = (((n < 1) ? 1 : n) + mult - 1) / mult * mult; ; k += mult)
     {
       size_t r = k;
 
@@ -120,8 +92,9 @@ ps_next_smooth(size_t n, size_t mult)
     }
 }
 
+/* number of threads to use (requested > 0, or all available) */
 int
-ps_max_threads(int requested)
+potsynth_max_threads(const int requested)
 {
 #ifdef _OPENMP
   if (requested > 0)
@@ -133,10 +106,26 @@ ps_max_threads(int requested)
 #endif
 }
 
+/*
+potsynth_pow_scaled()
+  Compute s^k as a mantissa and exponent, s^k = mant * 2^expo,
+by repeated squaring with renormalization, so that it never
+underflows or overflows
+
+Inputs: s    - base
+        k    - power
+        mant - (output) mantissa, 0.5 <= |mant| < 1 (mant = 1 for k = 0, 0 for s = 0)
+        expo - (output) exponent
+
+Notes:
+1) The relative error is bounded by about k * eps, as for a running product
+*/
+
 void
-ps_pow_scaled(double s, size_t k, double *mant, int *expo)
+potsynth_pow_scaled(const double s, const size_t k, double * mant, int * expo)
 {
   const int negate = (s < 0.0) && (k & 1);
+  size_t kk = k;
   double rm = 1.0, bm;
   int re = 0, be;
 
@@ -149,19 +138,19 @@ ps_pow_scaled(double s, size_t k, double *mant, int *expo)
       return;
     }
 
-  while (k > 0)
+  while (kk > 0)
     {
       int e;
 
-      if (k & 1)
+      if (kk & 1)
         {
           rm = frexp(rm * bm, &e);
           re += be + e;
         }
 
-      k >>= 1;
+      kk >>= 1;
 
-      if (k > 0)
+      if (kk > 0)
         {
           bm = frexp(bm * bm, &e);
           be = 2 * be + e;
@@ -172,12 +161,23 @@ ps_pow_scaled(double s, size_t k, double *mant, int *expo)
   *expo = re;
 }
 
+/*
+potsynth_sincos_m()
+  Compute cos(m phi) and sin(m phi) accurately for a double phi,
+correcting for the rounding error of the product m*phi
+
+Inputs: m   - order
+        phi - angle (radians)
+        c   - (output) cos(m phi)
+        s   - (output) sin(m phi)
+*/
+
 void
-ps_sincos_m(size_t m, double phi, double *c, double *s)
+potsynth_sincos_m(const size_t m, const double phi, double * c, double * s)
 {
   const double dm = (double) m;
   const double hi = dm * phi;
-  const double lo = fma(dm, phi, -hi);  /* exact rounding error of m*phi */
+  const double lo = fma(dm, phi, -hi); /* exact rounding error of m*phi */
   const double sh = sin(hi);
   const double ch = cos(hi);
 

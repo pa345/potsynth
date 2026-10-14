@@ -121,9 +121,9 @@ Coefficients
 .. py:function:: idx(n, m, lmin, mmax)
 
    Index of coefficient :math:`(n, m)` in a coefficient vector. :math:`m < 0` gives the
-   sine coefficient of order :math:`|m|`. This is the same as :c:macro:`POTSYNTH_IDX`.
+   sine coefficient of order :math:`|m|`. This is the same as :c:macro:`potsynth_idx`.
 
-.. py:function:: ncoef(lmin, lmax, mmax=None)
+.. py:function:: nlm(lmin, lmax, mmax=None)
 
    Length of a coefficient vector.
 
