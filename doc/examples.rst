@@ -2,10 +2,14 @@
 Examples
 ********
 
-Both examples build a synthetic lithospheric-type model: a dipole-dominated core field
-plus a flat lithospheric spectrum up to degree 185, similar in size to CHAOS. They then
-evaluate it at :math:`10^6` random points in the 250--800 km shell, and compare the
-first 1000 points with the direct sum. To use a real model, replace the coefficients.
+Both examples evaluate a lithospheric magnetic field model at :math:`10^6` random points
+in the 250--800 km shell, and compare the first 1000 points with the direct sum.
+
+- **Model source:** with a file argument, the model is read from a static Swarm SHC
+  file, for example LCS-1 (Olsen et al., 2017, degrees 1--185). Without an argument, a
+  synthetic model of similar size is used.
+- **Timings:** the outputs below are for LCS-1 on 16 threads of an Intel Core Ultra 7
+  265H.
 
 C
 =
@@ -16,25 +20,26 @@ separately:
 .. code-block:: sh
 
    cc -O2 example_mag.c -lpotsynth -lm -o example_mag
+   ./example_mag LCS-1.shc
 
 .. literalinclude:: ../examples/example_mag.c
    :language: c
-   :lines: 16-
+   :lines: 19-
 
-Output on 16 threads:
+Output:
 
 .. code-block:: text
 
-   set-up:      0.066 s
-   method:      fast, window w = 11, radial rank = 9, grid 63.7 MB
-   evaluation:  1000000 points in 0.077 s
-   fast vs direct (1000 points): max difference 8.28e-07 nT (1.1e-11 relative)
-
+   model:       LCS-1.shc, degrees 1-185, epoch 2015
+   set-up:      0.131 s
+   method:      fast, window w = 11, radial rank = 12, grid 81.8 MB
+   evaluation:  1000000 points in 0.153 s
+   fast vs direct (1000 points): max difference 4.65e-10 nT (2.5e-11 relative)
          r [km]   colat [deg]  lon [deg]      B_N [nT]      B_E [nT]      B_C [nT]
-       6647.140      93.1622   259.2005    23636.6470     9668.6087    10337.5273
-       6621.698      22.1884   126.0955     8296.0260     9356.0822    45368.1189
-       6835.938      62.8764   271.8356    11629.1472     1789.3621    29620.5851
-       6636.556     119.9082   259.3058    26377.9781    14396.5709   -10635.1553
+       7083.303     102.1947   281.9157       -0.7021       -0.0320       -0.4513
+       7060.342      34.5840    71.1185       -1.6776        0.4057        0.8405
+       6805.573      57.5571    99.9989       -2.5544        1.4879       -1.9949
+       6925.883      92.5910   226.3935       -1.2686       -0.7389       -1.8480
 
 Python
 ======
@@ -44,28 +49,34 @@ Python
 .. code-block:: sh
 
    POTSYNTH_LIBRARY=/path/to/libpotsynth.so PYTHONPATH=/path/to/potsynth/python \
-       python example_mag.py
+       python example_mag.py LCS-1.shc
 
 .. literalinclude:: ../examples/example_mag.py
    :language: python
-   :lines: 11-
+   :lines: 12-
 
 Output:
 
 .. code-block:: text
 
-   set-up:      0.067 s
-   method:      fast, window w = 11, radial rank = 9, grid 63.7 MB
-   evaluation:  1000000 points in 0.083 s
-   fast vs direct (1000 points): max difference 9.50e-07 nT (1.4e-11 relative)
+   model:       LCS-1.shc, degrees 1-185, epoch 2015.0007
+   set-up:      0.128 s
+   method:      fast, window w = 11, radial rank = 12, grid 81.8 MB
+   evaluation:  1000000 points in 0.165 s
+   fast vs direct (1000 points): max difference 7.03e-10 nT (3.4e-11 relative)
 
          r [km]   colat [deg]  lon [deg]      B_N [nT]      B_E [nT]      B_C [nT]
-       7017.328      20.7620    80.6543    12491.1267    11416.9289    47991.4254
-       6747.817     133.6640   273.3265    16105.7094    -2699.0329   -19713.7437
-       6927.504      96.1811   223.7415    25283.8992      321.9703    -3081.1124
-       6883.566     140.5038   204.5044    13025.9682     -156.4956   -27410.0374
+       6902.702      84.5171   351.4295       -1.3117       -0.8520        2.3537
+       7143.955      58.8638    24.6780       -0.5459        0.1744       -1.3910
+       6700.488     146.0127     4.8576       -2.7507       -1.5084        2.2850
+       7142.957     114.0623    60.5696        0.7894       -0.0423        0.4690
 
-   map of B_r at 450 km: shape (181, 360), range [-63271.3, 41021.3] nT
+   map of B_r at 450 km: shape (181, 360), range [-17.5, 15.8] nT
 
 The last lines show broadcasting. ``model(a + 450.0, colat[:, None], lon[None, :])``
 evaluates a 1-degree global map in one call.
+
+LCS-1 needs 12 radial functions at :math:`10^{-10}`, against about 9 for a
+dipole-dominated model. A lithospheric model has no large low-degree terms, so its
+field is dominated by high degrees, whose radial factors :math:`(a/r)^{l+2}` change
+more across the shell.

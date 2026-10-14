@@ -12,6 +12,7 @@
  * test_radial.c  - radial basis
  * test_alf.c     - Legendre columns, accumulation kernel, column scaling
  * test_alf_gsl.c - Legendre columns against GSL (if HAVE_GSL)
+ * test_shc.c     - SHC file reader
  * test_ref.c     - magnetic field against extended precision reference values
  * test_eval.c    - fast method against direct method
  * test_api.c     - API contract (NaN inputs, domain errors, reproducibility)
@@ -53,6 +54,7 @@
 #include "test_radial.c"
 #include "test_alf.c"
 #include "test_alf_gsl.c"
+#include "test_shc.c"
 #include "test_ref.c"
 #include "test_eval.c"
 #include "test_api.c"
@@ -71,6 +73,7 @@ main(void)
   test_radial();
   test_alf();
   test_alf_gsl();
+  test_shc();
   test_ref();
   test_eval();
   test_api();

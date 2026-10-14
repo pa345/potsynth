@@ -212,6 +212,60 @@ Magnetic front-end
    Converts output in place, from :math:`(B_r, B_\theta, B_\phi)` to
    :math:`(B_N, B_E, B_C) = (-B_\theta, B_\phi, -B_r)`.
 
+SHC files
+---------
+
+Static models in the Swarm SHC format can be read directly, for example the
+lithospheric model LCS-1. The file contains ``#`` comment lines, a header line
+``lmin lmax ntimes [spline_order nstep]``, a line with the epochs, and one line
+``l m value`` per coefficient (:math:`m \ge 0` for :math:`g_l^m`, :math:`m < 0` for
+:math:`h_l^{|m|}`). Only static models (one epoch) are supported. Time-dependent
+core field models are of low degree, where a direct sum is already fast.
+
+.. c:struct:: potsynth_shc
+
+   .. c:member:: size_t lmin
+
+      minimum degree
+
+   .. c:member:: size_t lmax
+
+      maximum degree
+
+   .. c:member:: size_t mmax
+
+      maximum order (equal to ``lmax``)
+
+   .. c:member:: double epoch
+
+      model epoch (decimal year)
+
+   .. c:member:: double * gh
+
+      Schmidt semi-normalized Gauss coefficients (nT), indexed by
+      :c:macro:`potsynth_idx` ``(l, m, lmin, mmax)``, ready for
+      :c:func:`potsynth_mag_alloc`
+
+.. c:function:: potsynth_shc * potsynth_shc_read(const char * filename)
+
+   Reads a static model from an SHC file. All coefficients for
+   :math:`l_{min} \le l \le l_{max}`, :math:`|m| \le l` must be present exactly once.
+   Malformed files are reported to the error handler with the line number. Problems
+   detected include a missing header or epoch, out-of-range or duplicate entries,
+   missing coefficients, extra columns, non-finite values and over-long lines.
+   Time-dependent files give :c:macro:`POTSYNTH_EUNSUP`.
+
+   :returns: the model, or ``NULL`` on error
+
+.. c:function:: void potsynth_shc_free(potsynth_shc * shc)
+
+   Frees a model read by :c:func:`potsynth_shc_read`.
+
+.. c:function:: potsynth_workspace * potsynth_mag_alloc_shc(const char * filename, const double a, const double rmin, const double rmax, const potsynth_parameters * params)
+
+   Reads an SHC file and builds the magnetic field model, as
+   :c:func:`potsynth_mag_alloc`.
+
 Generic core
 ============
 

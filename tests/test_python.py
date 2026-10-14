@@ -97,6 +97,30 @@ def test_api():
     check(rel_err(vf, vd) < 1e-11, f"core fast vs direct {rel_err(vf, vd):.2e}")
     # dV/dr channel equals B_r of the magnetic model
     check(rel_err(vd[1], Bref[0]) < 1e-13, f"core dV/dr vs B_r {rel_err(vd[1], Bref[0]):.2e}")
+    # SHC reader: file -> model equals vector -> model; time-dependent files rejected
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        f = os.path.join(d, "t.shc")
+        with open(f, "w") as fp:
+            fp.write("# test\n 1 2 1 1 1\n 2015.0\n")
+            for ll in range(1, 3):
+                for mm in range(-ll, ll + 1):
+                    fp.write(f"{ll} {mm} {0.5 * ll + 0.1 * mm}\n")
+        shc = potsynth.read_shc(f)
+        check(shc.lmin == 1 and shc.lmax == 2 and shc.epoch == 2015.0, "read_shc header")
+        check(shc.gh[potsynth.idx(2, -1, 1, 2)] == 0.9, "read_shc coefficient h21")
+        m1 = potsynth.MagModel.from_shc(f, method="direct")
+        m2 = potsynth.MagModel(shc.gh, lmax=2, method="direct")
+        check(np.array_equal(np.array(m1(7000.0, 1.0, 2.0)), np.array(m2(7000.0, 1.0, 2.0))),
+              "MagModel.from_shc")
+        with open(f, "w") as fp:
+            fp.write("1 1 2 2 1\n2015.0 2020.0\n1 0 1 1\n1 1 1 1\n1 -1 1 1\n")
+        try:
+            potsynth.read_shc(f)
+            check(False, "time-dependent SHC accepted")
+        except potsynth.PotsynthError as e:
+            check(e.status == 4 and "time-dependent" in str(e), "time-dependent SHC error")
+
     print("  API checks done")
 
 

@@ -26,6 +26,10 @@ documentation (`doc/algorithm.rst`) and in
 
 Status: **pre-1.0**. Forward evaluation of static models is implemented and tested.
 
+Scope: static, high-degree models (lithospheric field, gravity field). Time-dependent core
+field models are of low degree (13 for IGRF, about 20 for CHAOS), where a parallel direct
+sum is already fast; potsynth does not handle time-dependent coefficients.
+
 Documentation: `doc/` (Sphinx). Build it with `make -C doc html`, then open
 `doc/_build/html/index.html`.
 
@@ -82,6 +86,10 @@ model = potsynth.MagModel((g, h), rmin=rmin, rmax=rmax, eps=1e-10)
 Br, Btheta, Bphi = model(r, theta, phi)
 ```
 
+Models in the Swarm SHC format (e.g. LCS-1) can be read directly:
+`potsynth_mag_alloc_shc("LCS-1.shc", 6371.2, rmin, rmax, &params)` in C, or
+`potsynth.MagModel.from_shc("LCS-1.shc", rmin=rmin, rmax=rmax)` in Python.
+
 Complete examples are in `examples/`.
 
 ## Building
@@ -124,9 +132,9 @@ kernels, ASan+UBSan, and TSan.
 ## Roadmap
 
 1. ~~Core set-up and fused evaluation; direct method; validation~~ (done)
-2. Magnetic front-end: time-dependent models, SHC reader.
+2. ~~Swarm SHC reader for static models (e.g. LCS-1)~~ (done)
 3. Python wheels (pip-installable packages; the ctypes interface works now).
-4. Gravity front-end.
+4. Gravity front-end: ICGEM `.gfc` / EGM2008 readers, GM/r scaling, normal field.
 5. Adjoint (transpose) operator for inversions (separate extension).
 
 ## License

@@ -60,6 +60,12 @@ Both methods are:
   evaluation never allocates memory.
 - **Free of required dependencies:** written in C11, with optional OpenMP.
 
+potsynth is aimed at **static, high-degree models**: lithospheric field models such as
+LCS-1 (degree 185), and gravity models. Static models in the Swarm SHC format can be read
+directly. Time-dependent core field models are of low degree (13 for the IGRF, about 20
+for CHAOS), where a parallel direct sum is already fast, so time-dependent coefficients
+are not handled.
+
 The core of the library is generic. It evaluates any set of *channels*, meaning linear
 functionals of a potential such as :math:`V`, its radial derivative, or its horizontal
 gradient. A magnetic front-end supplies :math:`B_r, B_\theta, B_\phi` from Gauss

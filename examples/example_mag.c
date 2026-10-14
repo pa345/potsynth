@@ -1,12 +1,15 @@
 /*
  * example_mag.c
  *
- * Evaluate a lithospheric-type magnetic field model at many scattered points
- * with potsynth
+ * Evaluate a lithospheric magnetic field model at many scattered points with
+ * potsynth
  *
- * The model is synthetic (a dipole-dominated core field plus a flat
- * lithospheric spectrum up to degree 185, similar in size to CHAOS); replace
- * it with real Gauss coefficients in the same layout.
+ * Usage: example_mag [file.shc]
+ *
+ * With an argument, the model is read from a (static) Swarm SHC file, e.g.
+ * LCS-1. Without an argument, a synthetic model is used (a dipole-dominated
+ * core field plus a flat lithospheric spectrum up to degree 185, similar in
+ * size to CHAOS).
  *
  * Build: cc -O2 example_mag.c -lpotsynth -lm -o example_mag
  *
@@ -42,45 +45,85 @@ now(void)
   return ts.tv_sec + 1.0e-9 * ts.tv_nsec;
 }
 
-int
-main(void)
+/*
+synthetic_model()
+  Synthetic model: core spectrum for l <= 13, flat lithospheric spectrum
+above; Gauss coefficients (nT) g_l^m at potsynth_idx(l,m,lmin,mmax) and
+h_l^m at potsynth_idx(l,-m,lmin,mmax)
+
+Inputs: lmax - maximum SH degree
+
+Return: model, free with potsynth_shc_free()
+*/
+
+static potsynth_shc *
+synthetic_model(const size_t lmax)
 {
-  const size_t lmax = 185;                       /* maximum SH degree */
+  potsynth_shc * shc = malloc(sizeof(potsynth_shc));
+  size_t l, m;
+
+  shc->lmin = 1;
+  shc->lmax = lmax;
+  shc->mmax = lmax;
+  shc->epoch = 2015.0;
+  shc->gh = malloc(potsynth_nlm(1, lmax, lmax) * sizeof(double));
+
+  for (l = 1; l <= lmax; ++l)
+    {
+      /* rms per coefficient */
+      const double Rl = (l <= 13) ? 9.0e8 * pow(50.0 / 9.0e8, (l - 1) / 12.0) : 0.5;
+      const double sd = sqrt(3.0 * Rl / ((l + 1.0) * (2.0 * l + 1.0)));
+
+      for (m = 0; m <= l; ++m)
+        {
+          shc->gh[potsynth_idx((long) l, (long) m, 1L, (long) lmax)] = sd * (2.0 * uniform() - 1.0);
+          if (m > 0)
+            shc->gh[potsynth_idx((long) l, -(long) m, 1L, (long) lmax)] = sd * (2.0 * uniform() - 1.0);
+        }
+    }
+
+  shc->gh[potsynth_idx(1L, 0L, 1L, (long) lmax)] = -29400.0;
+
+  return shc;
+}
+
+int
+main(int argc, char * argv[])
+{
   const double a = 6371.2;                       /* reference radius (km) */
   const double rmin = a + 250.0;                 /* radial range of the points (km) */
   const double rmax = a + 800.0;
   const size_t n = 1000000;                      /* number of points */
   const size_t ndirect = 1000;                   /* points compared with the direct sum */
-  double * gh = malloc(potsynth_nlm(1, lmax, lmax) * sizeof(double));
   double * r = malloc(n * sizeof(double));
   double * theta = malloc(n * sizeof(double));
   double * phi = malloc(n * sizeof(double));
   double * B = malloc(3 * n * sizeof(double));
   double * Bd = malloc(3 * ndirect * sizeof(double));
   potsynth_parameters params = potsynth_default_parameters();
+  potsynth_shc * shc;
   potsynth_workspace * w, * wd;
   potsynth_eval_workspace * ew, * ewd;
   potsynth_info info;
   double t0, err = 0.0, bmax = 0.0;
-  size_t l, m, i, j;
+  size_t i, j;
   int status;
 
-  /* 1. Gauss coefficients (nT): g_l^m at potsynth_idx(l,m,lmin,mmax), h_l^m at potsynth_idx(l,-m,lmin,mmax) */
-  for (l = 1; l <= lmax; ++l)
+  /* 1. Gauss coefficients: from an SHC file, or synthetic */
+  if (argc > 1)
     {
-      /* rms per coefficient: core spectrum for l <= 13, flat lithospheric spectrum above */
-      const double Rl = (l <= 13) ? 9.0e8 * pow(50.0 / 9.0e8, (l - 1) / 12.0) : 0.5;
-      const double sd = sqrt(3.0 * Rl / ((l + 1.0) * (2.0 * l + 1.0)));
+      shc = potsynth_shc_read(argv[1]);
+      if (shc == NULL)
+        exit(1); /* reported by the error handler */
 
-      for (m = 0; m <= l; ++m)
-        {
-          gh[potsynth_idx((long) l, (long) m, 1L, (long) lmax)] = sd * (2.0 * uniform() - 1.0);
-          if (m > 0)
-            gh[potsynth_idx((long) l, -(long) m, 1L, (long) lmax)] = sd * (2.0 * uniform() - 1.0);
-        }
+      fprintf(stderr, "model:       %s, degrees %zu-%zu, epoch %g\n", argv[1], shc->lmin, shc->lmax,
+              shc->epoch);
     }
-
-  gh[potsynth_idx(1L, 0L, 1L, (long) lmax)] = -29400.0;
+  else
+    {
+      shc = synthetic_model(185);
+      fprintf(stderr, "model:       synthetic, degrees 1-%zu\n", shc->lmax);
+    }
 
   /* 2. evaluation points: random in the 250-800 km shell, colatitude in [0,pi] */
   for (i = 0; i < n; ++i)
@@ -94,12 +137,9 @@ main(void)
   params.eps = 1.0e-10; /* requested relative accuracy */
 
   t0 = now();
-  w = potsynth_mag_alloc(1, lmax, lmax, gh, a, rmin, rmax, &params);
+  w = potsynth_mag_alloc(shc->lmin, shc->lmax, shc->mmax, shc->gh, a, rmin, rmax, &params);
   if (w == NULL)
-    {
-      fprintf(stderr, "main: potsynth_mag_alloc failed\n");
-      exit(1);
-    }
+    exit(1);
 
   fprintf(stderr, "set-up:      %.3f s\n", now() - t0);
 
@@ -114,16 +154,13 @@ main(void)
   t0 = now();
   status = potsynth_eval(n, r, theta, phi, B, ew);
   if (status)
-    {
-      fprintf(stderr, "main: potsynth_eval failed: %s\n", potsynth_strerror(status));
-      exit(1);
-    }
+    exit(1);
 
   fprintf(stderr, "evaluation:  %zu points in %.3f s\n", n, now() - t0);
 
   /* 5. compare the first points with the direct sum */
   params.method = POTSYNTH_METHOD_DIRECT;
-  wd = potsynth_mag_alloc(1, lmax, lmax, gh, a, rmin, rmax, &params);
+  wd = potsynth_mag_alloc(shc->lmin, shc->lmax, shc->mmax, shc->gh, a, rmin, rmax, &params);
   ewd = potsynth_eval_alloc(0, wd);
   potsynth_eval(ndirect, r, theta, phi, Bd, ewd);
 
@@ -153,7 +190,7 @@ main(void)
   potsynth_free(wd);
   potsynth_eval_free(ew);
   potsynth_free(w);
-  free(gh);
+  potsynth_shc_free(shc);
   free(r);
   free(theta);
   free(phi);

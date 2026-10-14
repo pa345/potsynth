@@ -42,6 +42,14 @@ class Params_t(ctypes.Structure):
                 ("nthreads", ctypes.c_int)]
 
 
+class Shc_t(ctypes.Structure):
+    _fields_ = [("lmin", ctypes.c_size_t),
+                ("lmax", ctypes.c_size_t),
+                ("mmax", ctypes.c_size_t),
+                ("epoch", ctypes.c_double),
+                ("gh", c_double_p)]
+
+
 class Info_t(ctypes.Structure):
     _fields_ = [("lmin", ctypes.c_size_t),
                 ("lmax", ctypes.c_size_t),
@@ -105,6 +113,12 @@ lib.potsynth_mag_alloc.restype = ctypes.c_void_p
 lib.potsynth_mag_alloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, c_double_p,
                                    ctypes.c_double, ctypes.c_double, ctypes.c_double,
                                    ctypes.POINTER(Params_t)]
+
+lib.potsynth_shc_read.restype = ctypes.POINTER(Shc_t)
+lib.potsynth_shc_read.argtypes = [ctypes.c_char_p]
+
+lib.potsynth_shc_free.restype = None
+lib.potsynth_shc_free.argtypes = [ctypes.POINTER(Shc_t)]
 
 lib.potsynth_free.restype = None
 lib.potsynth_free.argtypes = [ctypes.c_void_p]

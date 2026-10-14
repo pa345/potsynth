@@ -1,33 +1,44 @@
 """
-example_mag.py -- evaluate a lithospheric-type magnetic field model at many
+example_mag.py -- evaluate a lithospheric magnetic field model at many
 scattered points with potsynth.
 
-The model is synthetic (a dipole-dominated core field plus a flat lithospheric
-spectrum up to degree 185, similar in size to CHAOS); replace g and h with real
-Gauss coefficients.
+With an argument, the model is read from a (static) Swarm SHC file, e.g. LCS-1:
 
-Run:  POTSYNTH_LIBRARY=/path/to/libpotsynth.so python example_mag.py
+    POTSYNTH_LIBRARY=/path/to/libpotsynth.so python example_mag.py LCS-1.shc
+
+Without an argument, a synthetic model is used (a dipole-dominated core field plus a
+flat lithospheric spectrum up to degree 185, similar in size to CHAOS).
 """
+import sys
 import time
 
 import numpy as np
 
 import potsynth
 
-L = 185                       # maximum degree
 a = 6371.2                    # reference radius (km)
 rmin, rmax = a + 250.0, a + 800.0
 rng = np.random.default_rng(1)
 
-# 1. Gauss coefficients g[l, m], h[l, m] in nT
-g = np.zeros((L + 1, L + 1))
-h = np.zeros((L + 1, L + 1))
-for l in range(1, L + 1):
-    Rl = 9e8 * (50.0 / 9e8) ** ((l - 1) / 12.0) if l <= 13 else 0.5
-    sd = np.sqrt(Rl / ((l + 1) * (2 * l + 1)))
-    g[l, : l + 1] = rng.normal(0.0, sd, l + 1)
-    h[l, 1 : l + 1] = rng.normal(0.0, sd, l)
-g[1, 0] = -29400.0
+# 1. Gauss coefficients: from an SHC file, or synthetic arrays g[l, m], h[l, m] in nT
+if len(sys.argv) > 1:
+    shc = potsynth.read_shc(sys.argv[1])
+    gh = shc.gh
+    coef = dict(lmin=shc.lmin, lmax=shc.lmax, mmax=shc.mmax)
+    print(f"model:       {sys.argv[1]}, degrees {shc.lmin}-{shc.lmax}, epoch {shc.epoch}")
+else:
+    L = 185
+    g = np.zeros((L + 1, L + 1))
+    h = np.zeros((L + 1, L + 1))
+    for l in range(1, L + 1):
+        Rl = 9e8 * (50.0 / 9e8) ** ((l - 1) / 12.0) if l <= 13 else 0.5
+        sd = np.sqrt(Rl / ((l + 1) * (2 * l + 1)))
+        g[l, : l + 1] = rng.normal(0.0, sd, l + 1)
+        h[l, 1 : l + 1] = rng.normal(0.0, sd, l)
+    g[1, 0] = -29400.0
+    gh = (g, h)
+    coef = {}
+    print(f"model:       synthetic, degrees 1-{L}")
 
 # 2. evaluation points: random in the 250-800 km shell
 npts = 1_000_000
@@ -37,7 +48,7 @@ phi = rng.uniform(0.0, 2.0 * np.pi, npts)
 
 # 3. set-up: done once per model and radial range
 t0 = time.perf_counter()
-model = potsynth.MagModel((g, h), a=a, rmin=rmin, rmax=rmax, eps=1e-10)
+model = potsynth.MagModel(gh, a=a, rmin=rmin, rmax=rmax, eps=1e-10, **coef)
 print(f"set-up:      {time.perf_counter() - t0:.3f} s")
 info = model.info
 print(f"method:      {info['method']}, window w = {info['w']}, radial rank = {info['rho']}, "
@@ -49,7 +60,7 @@ Br, Btheta, Bphi = model(r, theta, phi)
 print(f"evaluation:  {npts} points in {time.perf_counter() - t0:.3f} s")
 
 # 5. compare the first 1000 points with the direct sum
-direct = potsynth.MagModel((g, h), a=a, method="direct")
+direct = potsynth.MagModel(gh, a=a, method="direct", **coef)
 Bd = np.array(direct(r[:1000], theta[:1000], phi[:1000]))
 err = np.max(np.abs(np.array([Br[:1000], Btheta[:1000], Bphi[:1000]]) - Bd))
 print(f"fast vs direct (1000 points): max difference {err:.2e} nT "

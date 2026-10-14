@@ -22,6 +22,16 @@
 extern "C" {
 #endif
 
+/* static model read from a Swarm SHC file */
+typedef struct
+{
+  size_t lmin;          /* minimum SH degree */
+  size_t lmax;          /* maximum SH degree */
+  size_t mmax;          /* maximum SH order (= lmax) */
+  double epoch;         /* model epoch (decimal year) */
+  double * gh;          /* Schmidt Gauss coefficients (nT), indexed by potsynth_idx(l,m,lmin,mmax) */
+} potsynth_shc;
+
 /*
  * Prototypes
  */
@@ -32,6 +42,13 @@ POTSYNTH_API potsynth_workspace * potsynth_mag_alloc(const size_t lmin, const si
                                                      const double rmin, const double rmax,
                                                      const potsynth_parameters * params);
 POTSYNTH_API void potsynth_mag_rtp2nec(const size_t n, double * B);
+
+/* shc.c */
+POTSYNTH_API potsynth_shc * potsynth_shc_read(const char * filename);
+POTSYNTH_API void potsynth_shc_free(potsynth_shc * shc);
+POTSYNTH_API potsynth_workspace * potsynth_mag_alloc_shc(const char * filename, const double a,
+                                                         const double rmin, const double rmax,
+                                                         const potsynth_parameters * params);
 
 #ifdef __cplusplus
 }

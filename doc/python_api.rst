@@ -71,6 +71,27 @@ Magnetic models
       ``sigma``, ``rho``, ``ncheb``, ``nf1``, ``nf2``, ``nrows``, ``grid_bytes``,
       ``lmin``, ``lmax``, ``mmax`` and ``nchan``.
 
+   .. py:classmethod:: from_shc(filename, a=6371.2, rmin=0.0, rmax=0.0, **kwargs)
+
+      Builds a model from a static Swarm SHC file (see :py:func:`read_shc`). The other
+      arguments are as for :py:class:`MagModel`, for example
+      ``MagModel.from_shc("LCS-1.shc", rmin=a + 250, rmax=a + 800)``.
+
+.. py:function:: read_shc(filename)
+
+   Reads a static model (one epoch, e.g. a lithospheric model such as LCS-1) from a
+   Swarm SHC file, using the C reader (see :c:func:`potsynth_shc_read`). Malformed
+   files raise :py:exc:`PotsynthError` with the line number. Time-dependent files are
+   not supported.
+
+   :returns: :py:class:`ShcModel`
+
+.. py:class:: ShcModel
+
+   The result of :py:func:`read_shc`, with attributes ``lmin``, ``lmax``, ``mmax``,
+   ``epoch`` (decimal year), and ``gh``: the Schmidt Gauss coefficients in nT, indexed by
+   :py:func:`idx`.
+
 .. py:function:: rtp_to_nec(Br, Btheta, Bphi)
 
    Returns :math:`(B_N, B_E, B_C) = (-B_\theta, B_\phi, -B_r)`.

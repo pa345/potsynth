@@ -2,12 +2,45 @@
 Magnetic front-end: B = -grad V for Schmidt semi-normalised Gauss coefficients.
 """
 import ctypes
+import os
+from dataclasses import dataclass
 
 import numpy as np
 
 from . import _lib
 from ._lib import lib
 from .core import _Evaluator, _params, _raise, coef_vector, nlm
+
+
+@dataclass
+class ShcModel:
+    """Static model read from a Swarm SHC file.
+
+    gh holds the Schmidt semi-normalized Gauss coefficients in nT, indexed by
+    idx(l, m, lmin, mmax) (g at m >= 0, h at m < 0)."""
+    lmin: int
+    lmax: int
+    mmax: int
+    epoch: float
+    gh: np.ndarray
+
+
+def read_shc(filename):
+    """Read a static model (one epoch, e.g. a lithospheric model) from a Swarm SHC file.
+
+    Time-dependent SHC files are not supported (core field models are of low degree
+    and are best evaluated with a direct sum). Returns a ShcModel."""
+    _lib.clear_error()
+    ptr = lib.potsynth_shc_read(os.fsencode(filename))
+    if not ptr:
+        _raise(_lib.POTSYNTH_EINVAL, "potsynth_shc_read")
+    try:
+        s = ptr.contents
+        n = nlm(s.lmin, s.lmax, s.mmax)
+        gh = np.ctypeslib.as_array(s.gh, shape=(n,)).copy()
+        return ShcModel(int(s.lmin), int(s.lmax), int(s.mmax), float(s.epoch), gh)
+    finally:
+        lib.potsynth_shc_free(ptr)
 
 
 class MagModel(_Evaluator):
@@ -56,6 +89,14 @@ class MagModel(_Evaluator):
         if not ptr:
             _raise(_lib.POTSYNTH_EINVAL, "potsynth_mag_alloc")
         super().__init__(ptr, 3, chunk)
+
+    @classmethod
+    def from_shc(cls, filename, a=6371.2, rmin=0.0, rmax=0.0, **kwargs):
+        """Build a model from a static Swarm SHC file (see read_shc()); the other
+        arguments are as for MagModel."""
+        shc = read_shc(filename)
+        return cls(shc.gh, lmax=shc.lmax, lmin=shc.lmin, mmax=shc.mmax, a=a, rmin=rmin, rmax=rmax,
+                   **kwargs)
 
     def __call__(self, r, theta, phi):
         B = self._evaluate(r, theta, phi)

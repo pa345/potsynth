@@ -23,6 +23,7 @@ set(POTSYNTH_SOURCES
   ${PROJECT_SOURCE_DIR}/src/mag.c
   ${PROJECT_SOURCE_DIR}/src/radial.c
   ${PROJECT_SOURCE_DIR}/src/setup.c
+  ${PROJECT_SOURCE_DIR}/src/shc.c
   ${PROJECT_SOURCE_DIR}/src/util.c
   ${PROJECT_SOURCE_DIR}/src/window.c
   ${PROJECT_SOURCE_DIR}/extern/pocketfft/pocketfft.c)
