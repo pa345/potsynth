@@ -59,6 +59,10 @@ extern "C" {
 #define POTSYNTH_THETA_P             0 /* Pbar_l^m(cos theta) */
 #define POTSYNTH_THETA_DP            1 /* d/dtheta Pbar_l^m */
 #define POTSYNTH_THETA_PSIN          2 /* Pbar_l^m / sin(theta), m >= 1, computed without dividing by sin(theta) */
+#define POTSYNTH_THETA_S2A           3 /* d2Pbar/dtheta2 - cot(theta) dPbar/dtheta + m^2 Pbar / sin^2(theta)
+                                          (Hessian T_thth - T_phph), pole-safe */
+#define POTSYNTH_THETA_S2B           4 /* (dPbar/dtheta - cot(theta) Pbar) / sin(theta), m >= 1
+                                          (Hessian T_thph), pole-safe */
 
 /* evaluation methods */
 #define POTSYNTH_METHOD_AUTO         0 /* fast or direct, chosen from lmax (and npts_hint) */

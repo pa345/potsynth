@@ -128,11 +128,29 @@ struct potsynth_workspace
   double * grid;        /* grid[((row - row_lo)*ncols + (col - col_lo))*nchp + q] */
   potsynth_radial_workspace * radial_workspace_p;
 
-  /* direct method: weight rows (A, B per channel) for each order m */
-  double * dW;          /* order m at dW + doff[m], rows of length lmax-m+1 */
+  /* direct method: each channel is a sum of terms, each the sum over l of one
+   * scaled column (Q, E or G) with a weight row, times a power of sin(theta) */
+  size_t nterm;         /* number of terms */
+  int * tcol;           /* column of each term (POTSYNTH_COL_xxx), length nterm */
+  int * tpost;          /* factor applied after the sum (POTSYNTH_POST_xxx), length nterm */
+  size_t * tchan;       /* channel of each term, length nterm */
+  int needG;            /* 1 if any term uses column G */
+  double * dW;          /* weight rows (A, B per term) of order m at dW + doff[m],
+                           rows of length lmax-m+1 */
   size_t * doff;        /* offsets into dW, length lmax+1 */
-  int * isE;            /* 1 if channel c uses dP/dtheta (column E), length nchan */
 };
+
+/* scaled ALF columns used by the direct method */
+#define POTSYNTH_COL_Q               0 /* Q(l,m) = Pbar / sin^m */
+#define POTSYNTH_COL_E               1 /* E(l,m) = (dPbar/dtheta) / sin^(m-1); dPbar/dtheta for m = 0 */
+#define POTSYNTH_COL_G               2 /* G(l,m) = -dQ/dx, x = cos(theta) */
+
+/* factor applied to a term after the sum over l, s = sin(theta) */
+#define POTSYNTH_POST_SM             0 /* s^m */
+#define POTSYNTH_POST_SM1            1 /* s^(m-1), 1 for m = 0 */
+#define POTSYNTH_POST_XSM            2 /* x s^m */
+#define POTSYNTH_POST_SM2            3 /* s^(m-2), m >= 2 only */
+#define POTSYNTH_POST_XSM2           4 /* x s^(m-2), m >= 2 only */
 
 struct potsynth_eval_workspace
 {

@@ -12,7 +12,8 @@ from ._lib import lib
 
 _METHODS = {"auto": _lib.METHOD_AUTO, "fast": _lib.METHOD_FAST, "direct": _lib.METHOD_DIRECT}
 _METHOD_NAMES = {v: k for k, v in _METHODS.items()}
-_THETA_OPS = {"P": _lib.THETA_P, "dP": _lib.THETA_DP, "Psin": _lib.THETA_PSIN}
+_THETA_OPS = {"P": _lib.THETA_P, "dP": _lib.THETA_DP, "Psin": _lib.THETA_PSIN,
+              "S2A": _lib.THETA_S2A, "S2B": _lib.THETA_S2B}
 
 
 class PotsynthError(RuntimeError):
@@ -84,7 +85,9 @@ class Channel:
         f(r, theta, phi) = sum_{l,m} rfac[l] (a/r)^(l + rpow) T[Pbar_l^m(cos theta)]
                                      (d/dphi)^dphi [C_lm cos(m phi) + S_lm sin(m phi)]
 
-    theta: "P" (Pbar), "dP" (d Pbar / d theta) or "Psin" (Pbar / sin theta, m >= 1).
+    theta: "P" (Pbar), "dP" (d Pbar / d theta), "Psin" (Pbar / sin theta, m >= 1),
+           "S2A" or "S2B" (the second-derivative operators of the gradient tensor;
+           direct method only for now).
     rfac: per-degree factors, length lmax + 1, or None for 1.
     """
     rpow: int

@@ -460,6 +460,57 @@ Generic core
    :math:`\bar{P}_l^m/\sin\theta`, computed without dividing by :math:`\sin\theta`.
    It is defined for :math:`m \ge 1`; the :math:`m = 0` terms are omitted.
 
+.. c:macro:: POTSYNTH_THETA_S2A
+
+   :math:`\mathcal{A}_l^m = d^2\bar{P}_l^m/d\theta^2 - \cot\theta\, d\bar{P}_l^m/d\theta
+   + m^2 \bar{P}_l^m/\sin^2\theta`, the angular part of :math:`T_{\theta\theta} -
+   T_{\phi\phi}` in the gradient tensor (see :ref:`gradient-tensor`). It is computed
+   without dividing by :math:`\sin\theta` and is exact at the poles.
+
+.. c:macro:: POTSYNTH_THETA_S2B
+
+   :math:`\mathcal{B}_l^m = (d\bar{P}_l^m/d\theta - \cot\theta\, \bar{P}_l^m)/\sin\theta`,
+   the angular part of :math:`T_{\theta\phi}` (used with ``dphi = 1``). It is defined
+   for :math:`m \ge 1`; the :math:`m = 0` terms are omitted.
+
+The two second-derivative operators are currently evaluated by the direct method only:
+:c:macro:`POTSYNTH_METHOD_AUTO` selects it for models that use them, and
+:c:macro:`POTSYNTH_METHOD_FAST` gives :c:macro:`POTSYNTH_EUNSUP`.
+
+For example, the gradient tensor :math:`T = \nabla\nabla V` of
+:math:`V = \sum (a/r)^{l+1} \bar{P}_l^m [\ldots]` is given by five channels, all with
+``rpow = 3``:
+
+.. list-table::
+   :header-rows: 1
+
+   * - component
+     - ``rfac``
+     - ``theta``
+     - ``dphi``
+   * - :math:`T_{rr}`
+     - :math:`(l+1)(l+2)/a^2`
+     - ``P``
+     - 0
+   * - :math:`T_{r\theta}`
+     - :math:`-(l+2)/a^2`
+     - ``DP``
+     - 0
+   * - :math:`T_{r\phi}`
+     - :math:`-(l+2)/a^2`
+     - ``PSIN``
+     - 1
+   * - :math:`D = T_{\theta\theta} - T_{\phi\phi}`
+     - :math:`1/a^2`
+     - ``S2A``
+     - 0
+   * - :math:`T_{\theta\phi}`
+     - :math:`1/a^2`
+     - ``S2B``
+     - 1
+
+with :math:`T_{\theta\theta} = (-T_{rr} + D)/2` and :math:`T_{\phi\phi} = (-T_{rr} - D)/2`.
+
 .. c:function:: potsynth_workspace * potsynth_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const double * coef, const double a, const double rmin, const double rmax, const size_t nchan, const potsynth_channel * chan, const potsynth_parameters * params)
 
    Builds a model with user-defined channels.

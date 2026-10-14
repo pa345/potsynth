@@ -27,8 +27,10 @@ maximum order, and :math:`c` labels a *channel*. Each channel is defined by:
 
 - a per-degree factor :math:`\rho_c(l)`;
 - a radial power offset :math:`p_c`;
-- an operator :math:`T_c` in colatitude, one of :math:`\bar{P}`,
-  :math:`d\bar{P}/d\theta` or :math:`\bar{P}/\sin\theta`;
+- an operator :math:`T_c` in colatitude: :math:`\bar{P}`, :math:`d\bar{P}/d\theta`,
+  :math:`\bar{P}/\sin\theta`, or one of the second-derivative operators
+  :math:`\mathcal{A}`, :math:`\mathcal{B}` of the gradient tensor (see
+  :ref:`gradient-tensor`);
 - an operator :math:`D_c` in longitude, either the identity or :math:`d/d\phi`.
 
 For example, the magnetic field :math:`\mathbf{B} = -\nabla V` of
@@ -382,6 +384,179 @@ behaves like :math:`P_l \approx 2P_{l-1} - P_{l-2}`, so rounding errors grow lin
 at each step. The relative error is then about :math:`\varepsilon L^2`, roughly
 :math:`10^{-12}` at :math:`L = 185` and :math:`10^{-10}` at :math:`L = 2190`. This
 holds for any implementation of the standard recursion, including GSL.
+
+.. _gradient-tensor:
+
+The gradient tensor
+===================
+
+The second derivatives of the potential appear in two places:
+
+- the magnetic gradient tensor :math:`\nabla\mathbf{B} = -\nabla\nabla V`;
+- the gravity gradient tensor (the quantity measured by GOCE)
+  :math:`\Gamma = \nabla\nabla V`, usually given in Eötvös units,
+  :math:`1\ \mathrm{E} = 10^{-9}\ \mathrm{s}^{-2}`.
+
+Both are the Hessian :math:`T = \nabla\nabla V`, up to sign. Because :math:`V` is a
+potential, :math:`T` is symmetric, and because :math:`\nabla^2 V = 0`, it is traceless.
+It therefore has five independent components.
+
+**Components in the spherical basis.** In the basis
+:math:`(\hat{r}, \hat{\theta}, \hat{\phi})`, the covariant derivative gives
+
+.. math::
+
+   T_{rr} &= \partial_r^2 V, &
+   T_{r\theta} &= \frac{1}{r}\, \partial_r \partial_\theta V - \frac{1}{r^2}\, \partial_\theta V, \\
+   T_{\theta\theta} &= \frac{1}{r^2}\, \partial_\theta^2 V + \frac{1}{r}\, \partial_r V, &
+   T_{r\phi} &= \frac{1}{r \sin\theta}\, \partial_r \partial_\phi V
+                - \frac{1}{r^2 \sin\theta}\, \partial_\phi V, \\
+   T_{\phi\phi} &= \frac{1}{r^2 \sin^2\theta}\, \partial_\phi^2 V + \frac{1}{r}\, \partial_r V
+                   + \frac{\cot\theta}{r^2}\, \partial_\theta V, &
+   T_{\theta\phi} &= \frac{1}{r^2 \sin\theta}\, \partial_\phi
+                     \left( \partial_\theta V - \cot\theta\, V \right).
+
+Apply these to one term :math:`V = u^{l+1}\, \bar{P}_l^m(\cos\theta)\, \Phi_m(\phi)`, with
+:math:`u = a/r` and :math:`\Phi_m = C_{lm}\cos m\phi + S_{lm}\sin m\phi`. Each component
+becomes :math:`u^{l+3}/a^2` times one angular function:
+
+.. math::
+   :label: hessian_channels
+
+   T_{rr} &= \frac{u^{l+3}}{a^2}\, (l+1)(l+2)\, \bar{P}_l^m\, \Phi_m, &
+   T_{r\theta} &= -\frac{u^{l+3}}{a^2}\, (l+2)\, \frac{d\bar{P}_l^m}{d\theta}\, \Phi_m, \\
+   T_{r\phi} &= -\frac{u^{l+3}}{a^2}\, (l+2)\, \frac{\bar{P}_l^m}{\sin\theta}\, \Phi_m', &
+   T_{\theta\phi} &= \frac{u^{l+3}}{a^2}\, \mathcal{B}_l^m\, \Phi_m', \\
+   T_{\theta\theta} - T_{\phi\phi} &= \frac{u^{l+3}}{a^2}\, \mathcal{A}_l^m\, \Phi_m,
+
+with the two new angular operators
+
+.. math::
+
+   \mathcal{A}_l^m = \frac{d^2\bar{P}_l^m}{d\theta^2} - \cot\theta\, \frac{d\bar{P}_l^m}{d\theta}
+                     + \frac{m^2}{\sin^2\theta}\, \bar{P}_l^m, \qquad
+   \mathcal{B}_l^m = \frac{1}{\sin\theta}
+                     \left( \frac{d\bar{P}_l^m}{d\theta} - \cot\theta\, \bar{P}_l^m \right).
+
+The remaining components follow from the trace:
+:math:`T_{\theta\theta} = \tfrac12 (-T_{rr} + D)` and
+:math:`T_{\phi\phi} = \tfrac12 (-T_{rr} - D)`, where :math:`D = T_{\theta\theta} - T_{\phi\phi}`.
+So the five channels :math:`T_{rr}, T_{r\theta}, T_{r\phi}, D, T_{\theta\phi}` give the
+whole tensor. The first three use the existing operators :math:`\bar{P}`,
+:math:`d\bar{P}/d\theta` and :math:`\bar{P}/\sin\theta`.
+
+**Removing the divisions by** :math:`\sin\theta`. :math:`\mathcal{A}` and
+:math:`\mathcal{B}` contain :math:`1/\sin\theta` and :math:`1/\sin^2\theta`, but the
+tensor itself is bounded everywhere. The divisions are only apparent. Every
+:math:`\bar{P}_l^m` contains the factor :math:`\sin^m\theta`, and the divisions cancel
+against it exactly. Write :math:`s = \sin\theta`, :math:`x = \cos\theta`, and
+
+.. math::
+
+   \bar{P}_l^m = s^m Q_l^m, \qquad Q_l^m = N_l^m\, \frac{d^m P_l}{dx^m}, \qquad
+   N_l^m = \sqrt{(2 - \delta_{m0})\,(2l+1)\, \frac{(l-m)!}{(l+m)!}},
+
+as in the previous section, without the power-of-two scaling. Then
+:math:`d\bar{P}_l^m/d\theta = s^{m-1} E_l^m` with
+:math:`E_l^m = m\,x\,Q_l^m - (1-x^2)\, dQ_l^m/dx`. Because :math:`Q_l^m` is the
+:math:`m`-th derivative of :math:`P_l`, its derivative is the next order:
+
+.. math::
+
+   \frac{dQ_l^m}{dx} = k_l^m\, Q_l^{m+1}, \qquad
+   k_l^0 = \sqrt{\tfrac12\, l(l+1)}, \qquad k_l^m = \sqrt{(l-m)(l+m+1)} \quad (m \ge 1).
+
+Substituting into :math:`\mathcal{A}` and :math:`\mathcal{B}` gives
+
+.. math::
+
+   \mathcal{A}_l^m &= 2\, s^{m-2} \left( m^2 Q_l^m - x\, E_l^m \right) - l(l+1)\, s^m Q_l^m, \\
+   \mathcal{B}_l^m &= s^{m-2} \left( E_l^m - x\, Q_l^m \right).
+
+For :math:`m \ge 2` the power :math:`s^{m-2}` is non-negative, so these are evaluated as
+written: no division occurs. For :math:`m = 0` and :math:`m = 1` the bracketed terms
+contain the factor :math:`1 - x^2 = s^2`, which cancels algebraically:
+
+.. math::
+
+   \mathcal{A}_l^0 &= 2\, k_l^0\, x\, Q_l^1 - l(l+1)\, Q_l^0, &
+   \mathcal{B}_l^0 &\ \text{(not needed: multiplied by } \Phi_0' = 0), \\
+   \mathcal{A}_l^1 &= s \left[ \left( 2 - l(l+1) \right) Q_l^1 + 2\, k_l^1\, x\, Q_l^2 \right], &
+   \mathcal{B}_l^1 &= -k_l^1\, s\, Q_l^2.
+
+These need the columns :math:`Q^1` and :math:`Q^2`, which the recursion computes anyway.
+For :math:`m \le 3` the scale exponents :math:`s_m` are zero at every supported degree,
+so the identities hold unchanged for the scaled columns.
+
+Evaluating the divisions numerically would also be inaccurate near the poles, not just
+at them. For example, :math:`(Q_l^1 - x E_l^1)/s` subtracts two nearly equal numbers
+and then divides by a small one, which loses relative accuracy like
+:math:`\varepsilon/\theta^2`. The algebraic forms above have no such loss.
+
+**Values at the poles.** At :math:`s = 0`, only :math:`m = 0` and :math:`m = 2`
+contribute to :math:`\mathcal{A}`, and only :math:`m = 2` to :math:`\mathcal{B}`.
+Every other term carries a positive power of :math:`s`.
+
+- For :math:`m = 0`, :math:`\mathcal{A}_l^0 = 0` at the poles, because
+  :math:`2\, k_l^0\, Q_l^1(1) = l(l+1)\sqrt{2l+1} = l(l+1)\, \bar{P}_l^0(1)`, and likewise
+  at :math:`x = -1`. This expresses the fact that a zonal field has an isotropic
+  horizontal tensor on the axis.
+- As for :math:`B_\theta` and :math:`B_\phi`, the components at a pole refer to the
+  local frame defined by the longitude :math:`\phi` of the point. They are the limits
+  approached along that meridian.
+
+To get components that are unique at the poles, rotate to Cartesian components with
+:math:`T^c = R^T T^s R`, where :math:`R` is the rotation from Cartesian to spherical
+components. The rotation is regular everywhere.
+
+**Implementation.** The library uses a form that needs no case distinction at all.
+Let :math:`G_l^m = -dQ_l^m/dx`. Differentiating the column recursion for
+:math:`Q_l^m` gives a recursion for :math:`G_l^m` with the same coefficients:
+
+.. math::
+
+   G_l^m = a_l^m \left( x\, G_{l-1}^m - Q_{l-1}^m \right) + b_l^m\, G_{l-2}^m,
+   \qquad G_m^m = 0.
+
+Since :math:`E_l^m = m\,x\,Q_l^m + s^2 G_l^m`, the operators become, for every
+:math:`m`,
+
+.. math::
+
+   \mathcal{A}_l^m &= 2m(m-1)\, s^{m-2} Q_l^m
+                      + s^m \left[ \left( 2m - l(l+1) \right) Q_l^m - 2x\, G_l^m \right], \\
+   \mathcal{B}_l^m &= (m-1)\, x\, s^{m-2} Q_l^m + s^m G_l^m \qquad (m \ge 1).
+
+The prefactors :math:`m(m-1)` and :math:`m-1` vanish exactly at the orders where
+:math:`s^{m-2}` would be singular, so no division by :math:`\sin\theta` occurs at any
+order. In the direct method, each channel is a sum of *terms*: the sum over :math:`l` of
+one column (:math:`Q`, :math:`E` or :math:`G`) with a weight row, multiplied afterwards
+by a power of :math:`s` (and possibly :math:`x`). :math:`\mathcal{A}` has three terms
+and :math:`\mathcal{B}` two, all fed by the same pass of the recursion. Terms are
+accumulated in vector registers in groups of up to six, and :math:`G` is only computed
+when a channel needs it. The full tensor (five channels, eight terms) costs about three
+times as much per point as the three components of :math:`\mathbf{B}`.
+
+The fast method does not support these operators yet: a model that uses them is
+evaluated with the direct method.
+
+**Bandwidth.** On the doubled sphere, :math:`\mathcal{A}_l^m` and :math:`\mathcal{B}_l^m`
+are trigonometric polynomials in :math:`\theta` of degree at most :math:`l`. For
+:math:`m \ge 2`, :math:`s^{m-2}` times a polynomial in :math:`x` of degree
+:math:`l - m + 1` has degree :math:`l - 1`, and :math:`s^m Q_l^m` has degree :math:`l`;
+the cases :math:`m = 0, 1` are similar. The grid of the fast method therefore needs no
+extra resolution for the gradient tensor. Only two more angular operators are evaluated
+during set-up.
+
+**Verification.** All of these identities were checked with 50-digit arithmetic:
+
+- the formulas for :math:`E_l^m`, :math:`\mathcal{A}_l^m` and :math:`\mathcal{B}_l^m`,
+  against the definitions by numerical differentiation, for :math:`l \le 8`, all
+  :math:`m`, and points down to :math:`10^{-6}` from both poles;
+- the pole values, against the limits approached along a meridian;
+- the full component table :eq:`hessian_channels`, against the Cartesian Hessian
+  :math:`\partial^2 V/\partial x_i \partial x_j` rotated to the spherical basis, with
+  agreement to :math:`10^{-40}`.
 
 Accuracy and parameter choice
 =============================

@@ -186,9 +186,38 @@ def test_grav():
     print("  gravity checks done")
 
 
+def test_hessian():
+    # gradient tensor channels (S2A, S2B) against the 40-digit reference values
+    with open(os.path.join(HERE, "data", "hess_L24_s12.bin"), "rb") as f:
+        L, n = (int(v) for v in np.fromfile(f, "<i8", 2))
+        a = np.fromfile(f, "<f8", 1)[0]
+        coef = np.fromfile(f, "<f8", potsynth.nlm(0, L, L))
+        r, th, ph = (np.fromfile(f, "<f8", n) for _ in range(3))
+        T = np.fromfile(f, "<f8", 6 * n).reshape(6, n)
+    l = np.arange(L + 1.0)
+    chans = [potsynth.Channel(3, "P", 0, (l + 1) * (l + 2) / a**2),
+             potsynth.Channel(3, "dP", 0, -(l + 2) / a**2),
+             potsynth.Channel(3, "Psin", 1, -(l + 2) / a**2),
+             potsynth.Channel(3, "S2A", 0, np.full(L + 1, 1 / a**2)),
+             potsynth.Channel(3, "S2B", 1, np.full(L + 1, 1 / a**2))]
+    m = potsynth.Model(coef, 0, L, chans, a)
+    check(m.info["method"] == "direct", "S2A/S2B models use the direct method")
+    Trr, Trt, Trp, D, Ttp = m(r, th, ph)
+    Tm = np.array([Trr, Trt, Trp, 0.5 * (-Trr + D), Ttp, 0.5 * (-Trr - D)])
+    check(rel_err(Tm, T) < 1e-13, f"Hessian channels vs reference ({rel_err(Tm, T):.2e})")
+    try:
+        potsynth.Model(coef, 0, L, chans, a, rmin=1.0, rmax=1.3, method="fast")
+        check(False, "fast method accepted S2A/S2B")
+    except potsynth.PotsynthError as e:
+        check(e.status == 4, "fast method with S2A/S2B error code")
+
+    print("  gradient tensor checks done")
+
+
 if __name__ == "__main__":
     test_reference()
     test_api()
     test_grav()
+    test_hessian()
     print("FAILED" if nfail else "all passed")
     sys.exit(1 if nfail else 0)

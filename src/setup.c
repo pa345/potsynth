@@ -126,8 +126,7 @@ potsynth_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const do
 
   for (c = 0; c < nchan; ++c)
     {
-      if (chan[c].theta != POTSYNTH_THETA_P && chan[c].theta != POTSYNTH_THETA_DP &&
-          chan[c].theta != POTSYNTH_THETA_PSIN)
+      if (chan[c].theta < POTSYNTH_THETA_P || chan[c].theta > POTSYNTH_THETA_S2B)
         {
           POTSYNTH_ERROR_NULL ("invalid theta operator", POTSYNTH_EINVAL);
         }
@@ -161,6 +160,21 @@ potsynth_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const do
     w->method = auto_method(lmax, nchan, &p);
   else
     w->method = p.method;
+
+  /* the second-derivative operators are not yet part of the fast method set-up */
+  for (c = 0; c < nchan; ++c)
+    {
+      if (chan[c].theta == POTSYNTH_THETA_S2A || chan[c].theta == POTSYNTH_THETA_S2B)
+        {
+          if (p.method == POTSYNTH_METHOD_FAST)
+            {
+              potsynth_free(w);
+              POTSYNTH_ERROR_NULL ("THETA_S2A/S2B channels need the direct method", POTSYNTH_EUNSUP);
+            }
+
+          w->method = POTSYNTH_METHOD_DIRECT;
+        }
+    }
 
   if (w->method == POTSYNTH_METHOD_FAST && !(rmin > 0.0 && rmin <= rmax && isfinite(rmax)))
     {
