@@ -2,7 +2,7 @@
  * test_core.c -- API contract and edge cases; fast method checked against the
  * direct method
  *
- * Copyright (c) 2026, Patrick Alken and Jonathan Burchill. BSD 3-Clause License.
+ * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
  */
 
 #include <math.h>

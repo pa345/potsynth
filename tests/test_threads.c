@@ -3,7 +3,7 @@
  * threads, each with its own eval workspace; results must equal the serial
  * results bitwise. Also run under ThreadSanitizer (tests/check.sh).
  *
- * Copyright (c) 2026, Patrick Alken and Jonathan Burchill. BSD 3-Clause License.
+ * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
  */
 
 #include <math.h>

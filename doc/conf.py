@@ -6,8 +6,8 @@
 # -- Project information -----------------------------------------------------
 
 project = 'potsynth'
-copyright = '2026, Patrick Alken and Jonathan Burchill'
-author = 'Patrick Alken and Jonathan Burchill'
+copyright = '2026, Patrick Alken and Johnathan Burchill'
+author = 'Patrick Alken and Johnathan Burchill'
 release = '0.1.0'
 
 # -- General configuration ---------------------------------------------------

@@ -4,7 +4,7 @@
  *
  *   phi(z) = exp(beta (sqrt(1 - z^2) - 1)),  |z| <= 1,   z = x / (w h / 2)
  *
- * Copyright (c) 2026, Patrick Alken and Jonathan Burchill. BSD 3-Clause License.
+ * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
  */
 
 #include <math.h>

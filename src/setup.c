@@ -17,7 +17,7 @@
  * half-complex spectra into grid values, and periodic padding columns are filled.
  * Peak memory is the grid itself plus small per-thread buffers.
  *
- * Copyright (c) 2026, Patrick Alken and Jonathan Burchill. BSD 3-Clause License.
+ * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
  */
 
 #include <math.h>

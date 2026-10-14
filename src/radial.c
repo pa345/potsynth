@@ -10,7 +10,7 @@
  * The SVD is a one-sided Jacobi method, which computes small singular values to
  * high relative accuracy (needed for machine-precision operation).
  *
- * Copyright (c) 2026, Patrick Alken and Jonathan Burchill. BSD 3-Clause License.
+ * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
  */
 
 #include <float.h>

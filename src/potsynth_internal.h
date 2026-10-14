@@ -1,7 +1,7 @@
 /*
  * potsynth_internal.h -- internal definitions shared by the source files
  *
- * Copyright (c) 2026, Patrick Alken and Jonathan Burchill. BSD 3-Clause License.
+ * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
  */
 
 #ifndef POTSYNTH_INTERNAL_H

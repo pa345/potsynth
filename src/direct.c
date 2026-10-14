@@ -7,7 +7,7 @@
  * No ALF array is stored. Pole-safe: P/sin(theta) and dP/dtheta come from the
  * scaled columns and are finite at theta = 0 and pi.
  *
- * Copyright (c) 2026, Patrick Alken and Jonathan Burchill. BSD 3-Clause License.
+ * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
  */
 
 #include <math.h>

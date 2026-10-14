@@ -7,7 +7,7 @@
  * with Schmidt semi-normalized P_n^m, and B = -grad V. The front-end converts the
  * Gauss coefficients to the core normalization and defines three channels.
  *
- * Copyright (c) 2026, Patrick Alken and Jonathan Burchill. BSD 3-Clause License.
+ * Copyright (c) 2026, Patrick Alken and Johnathan Burchill. BSD 3-Clause License.
  *
  * Pre-1.0: the interface may still change.
  */
