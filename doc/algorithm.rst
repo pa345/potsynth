@@ -452,6 +452,50 @@ point on one core.
 :math:`L \approx 20\text{--}30`, depending on the accuracy and the number of threads.
 ``POTSYNTH_METHOD_AUTO`` uses the direct method for :math:`L < 24`.
 
+.. _choosing-method:
+
+Choosing between the methods
+============================
+
+The fast method has a one-time set-up cost: building the grid. After that, each point
+is much cheaper than with the direct method. So the direct method is faster for few
+points and the fast method for many. The table gives measured times on 16 threads with
+:math:`\varepsilon = 10^{-10}`: magnetic models with 3 channels, and EGM2008
+(:math:`L = 2190`) with 1 channel.
+
+=====  =========  ===============  =============  ==================
+L      set-up     direct, per pt   fast, per pt   break-even points
+=====  =========  ===============  =============  ==================
+13                0.023 µs         0.044 µs       never
+30     0.005 s    0.080 µs         0.051 µs       about 170 000
+60     0.008 s    0.21 µs          0.053 µs       about 50 000
+185    0.073 s    1.6 µs           0.072 µs       about 48 000
+400    0.25 s     10.8 µs          0.076 µs       about 23 000
+720    1.1 s      39 µs            0.19 µs        about 28 000
+2190   7.6 s      222 µs           0.24 µs        about 35 000
+=====  =========  ===============  =============  ==================
+
+Above about :math:`L = 50`, the break-even lies between about 20 000 and 50 000 points,
+because both the set-up and the direct sum grow with :math:`L`. Beyond it the fast
+method wins by a growing factor: about 30 times at :math:`10^6` points and 200 times at
+:math:`10^7` points for EGM2008.
+
+If the expected number of points is given (``npts_hint``), ``POTSYNTH_METHOD_AUTO``
+compares the estimated totals :math:`t_{setup} + n\,t_{fast}` and :math:`n\,t_{direct}`
+using these empirical cost models (in seconds):
+
+.. math::
+
+   t_{setup} &= 6.3 \times 10^{-12}\, n_{ch} L^3 + 7.8 \times 10^{-8}\, n_{ch} L^2, \\
+   t_{direct} &= 3.5 \times 10^{-11}\, L^2 \left(1 + (n_{chan} - 1)/2\right), \\
+   t_{fast} &= 1.5 \times 10^{-11}\, w^2 n_{ch} + 5 \times 10^{-8},
+
+where :math:`n_{ch} = n_{chan}\,\rho`, and the radial rank is estimated as
+:math:`\rho \approx 2 + 0.7 \log_{10}(1/\varepsilon)`. The models reproduce the
+measured break-even points to within a factor of two. Near the break-even both methods
+take about the same time, so an imperfect choice costs little. Without a hint, the fast
+method is used for :math:`L \ge 24`.
+
 References
 ==========
 

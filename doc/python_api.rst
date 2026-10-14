@@ -22,7 +22,7 @@ evaluated. To build and load the library, see :ref:`installation <python-install
 Magnetic models
 ===============
 
-.. py:class:: MagModel(gh, lmax=None, lmin=1, mmax=None, a=6371.2, rmin=0.0, rmax=0.0, eps=1e-10, method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0)
+.. py:class:: MagModel(gh, lmax=None, lmin=1, mmax=None, a=6371.2, rmin=0.0, rmax=0.0, eps=1e-10, method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0, npts_hint=0)
 
    An internal magnetic field model :math:`\mathbf{B} = -\nabla V`, where :math:`V` is
    given by Schmidt semi-normalized Gauss coefficients (:eq:`mag_potential`).
@@ -42,6 +42,9 @@ Magnetic models
       ``rmin``
    :param float eps: requested accuracy, relative to the largest field value
    :param str method: ``"auto"``, ``"fast"`` or ``"direct"``
+   :param int npts_hint: expected number of evaluation points. With ``method="auto"``,
+      the method with the smaller total time (set-up plus evaluation) is chosen; 0 means
+      unknown (see :ref:`choosing-method`).
    :param int nthreads: OpenMP threads; 0 means all
    :param float sigma: expert override: oversampling factor; 0 means automatic
    :param int w: expert override: window width; 0 means automatic
@@ -111,7 +114,7 @@ Generic models
    :param rfac: per-degree factors :math:`\rho(l)`, length :math:`L+1`, or ``None``
       for 1
 
-.. py:class:: Model(coef, lmin, lmax, channels, a, rmin=0.0, rmax=0.0, mmax=None, eps=1e-10, method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0)
+.. py:class:: Model(coef, lmin, lmax, channels, a, rmin=0.0, rmax=0.0, mmax=None, eps=1e-10, method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0, npts_hint=0)
 
    A model with user-defined channels. ``coef`` holds the 4-:math:`\pi` fully
    normalized coefficients as a vector (see :py:func:`coef_vector`), and ``lmin``

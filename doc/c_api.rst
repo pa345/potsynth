@@ -165,13 +165,22 @@ Parameters
 
       Tolerance of the radial SVD; 0 means :math:`0.1\,\varepsilon`.
 
+   .. c:member:: size_t npts_hint
+
+      Expected number of points that will be evaluated with this model; 0 (the
+      default) means unknown. :c:macro:`POTSYNTH_METHOD_AUTO` uses it to choose the
+      method with the smaller total time, set-up plus evaluation. The fast method's
+      set-up only pays off for enough points; see :ref:`choosing-method`.
+
 .. c:function:: potsynth_parameters potsynth_default_parameters(void)
 
    Returns the default parameters.
 
 .. c:macro:: POTSYNTH_METHOD_AUTO
 
-   Use the fast method for :math:`l_{max} \ge 24` and the direct method otherwise.
+   With :c:member:`potsynth_parameters.npts_hint` set: use the method with the smaller estimated total
+   time for that many points (see :ref:`choosing-method`). Without it: use the fast
+   method for :math:`l_{max} \ge 24` and the direct method otherwise.
 
 .. c:macro:: POTSYNTH_METHOD_FAST
 

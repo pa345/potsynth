@@ -16,6 +16,10 @@ with the library's own optimized direct sum:
 | 400  | 288 MB  | 0.25 s  | 0.076 s    | 10.8 s     | 141x    |
 | 720  | 0.9 GB  | 1.1 s   | 0.19 s     | 39 s       | 205x    |
 
+The fast method has a one-time set-up (0.07 s at L = 185, 7.6 s for EGM2008 at L = 2190),
+so it pays off from about 20,000-50,000 points; setting `npts_hint` (the expected number of
+points) lets `POTSYNTH_METHOD_AUTO` choose the faster method including set-up.
+
 The direct sum itself is 4.5-9.5x faster than computing the Legendre functions first
 (`gsl_sf_alf_vsh_array`) and then summing. The library uses the direct sum for low degrees.
 

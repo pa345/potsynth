@@ -92,8 +92,9 @@ class Channel:
     rfac: object = None
 
 
-def _params(eps, method, nthreads, sigma, w, rank_tol):
+def _params(eps, method, nthreads, sigma, w, rank_tol, npts_hint=0):
     p = lib.potsynth_default_parameters()
+    p.npts_hint = npts_hint
     p.eps = eps
     p.method = _METHODS[method]
     p.nthreads = nthreads
@@ -164,6 +165,8 @@ class Model(_Evaluator):
     rmin, rmax : radial range of the evaluation points (required by the fast method)
     eps : requested accuracy relative to the largest output value
     method : "auto", "fast" or "direct"
+    npts_hint : expected number of evaluation points; with "auto", the method with the
+                smaller total time (set-up + evaluation) is chosen (0 = unknown)
     nthreads : OpenMP threads (0 = all)
     sigma, w, rank_tol : expert overrides (0 = automatic)
     chunk : points per internal chunk (0 = default)
@@ -173,7 +176,7 @@ class Model(_Evaluator):
     """
 
     def __init__(self, coef, lmin, lmax, channels, a, rmin=0.0, rmax=0.0, mmax=None, eps=1e-10,
-                 method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0):
+                 method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0, npts_hint=0):
         mmax = lmax if mmax is None else mmax
         coef = np.ascontiguousarray(coef, dtype=float)
         if coef.size != nlm(lmin, lmax, mmax):
@@ -194,7 +197,7 @@ class Model(_Evaluator):
                 self._rfac.append(rf)
                 chans[i].rfac = rf.ctypes.data_as(_lib.c_double_p)
 
-        p = _params(eps, method, nthreads, sigma, w, rank_tol)
+        p = _params(eps, method, nthreads, sigma, w, rank_tol, npts_hint)
         _lib.clear_error()
         ptr = lib.potsynth_alloc(lmin, lmax, mmax, coef.ctypes.data_as(_lib.c_double_p), a,
                                  rmin, rmax, len(channels), chans, ctypes.byref(p))

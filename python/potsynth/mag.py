@@ -56,14 +56,15 @@ class MagModel(_Evaluator):
     a : reference radius in km (default 6371.2)
     rmin, rmax : radial range in km of the evaluation points (required by the fast
                  method; default: none, i.e. direct method only)
-    eps, method, nthreads, sigma, w, rank_tol, chunk : as for potsynth.Model
+    eps, method, npts_hint, nthreads, sigma, w, rank_tol, chunk : as for potsynth.Model
 
     Calling the model with (r [km], theta [rad, colatitude], phi [rad]) returns
     (B_r, B_theta, B_phi) in nT, each with the broadcast shape of the inputs.
     """
 
     def __init__(self, gh, lmax=None, lmin=1, mmax=None, a=6371.2, rmin=0.0, rmax=0.0,
-                 eps=1e-10, method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0):
+                 eps=1e-10, method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0,
+                 npts_hint=0):
         if isinstance(gh, tuple):
             g, h = gh
             lmax = np.asarray(g).shape[0] - 1 if lmax is None else lmax
@@ -82,7 +83,7 @@ class MagModel(_Evaluator):
         if lmax > _lib.LMAX:
             raise ValueError(f"lmax > {_lib.LMAX} is not supported")
 
-        p = _params(eps, method, nthreads, sigma, w, rank_tol)
+        p = _params(eps, method, nthreads, sigma, w, rank_tol, npts_hint)
         _lib.clear_error()
         ptr = lib.potsynth_mag_alloc(lmin, lmax, mmax, gh.ctypes.data_as(_lib.c_double_p), a,
                                      rmin, rmax, ctypes.byref(p))

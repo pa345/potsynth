@@ -39,7 +39,8 @@ class Params_t(ctypes.Structure):
                 ("sigma", ctypes.c_double),
                 ("w", ctypes.c_int),
                 ("rank_tol", ctypes.c_double),
-                ("nthreads", ctypes.c_int)]
+                ("nthreads", ctypes.c_int),
+                ("npts_hint", ctypes.c_size_t)]
 
 
 class Shc_t(ctypes.Structure):

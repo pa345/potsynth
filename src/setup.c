@@ -12,6 +12,8 @@
 
 #include "potsynth_internal.h"
 
+static int auto_method(const size_t lmax, const size_t nchan, const potsynth_parameters * params);
+
 /*
 potsynth_default_parameters()
   Return default parameters
@@ -28,6 +30,7 @@ potsynth_default_parameters(void)
   params.w = 0;
   params.rank_tol = 0.0;
   params.nthreads = 0;
+  params.npts_hint = 0;
 
   return params;
 }
@@ -155,7 +158,7 @@ potsynth_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const do
   w->nthreads = potsynth_max_threads(p.nthreads);
 
   if (p.method == POTSYNTH_METHOD_AUTO)
-    w->method = (lmax >= POTSYNTH_AUTO_LMIN) ? POTSYNTH_METHOD_FAST : POTSYNTH_METHOD_DIRECT;
+    w->method = auto_method(lmax, nchan, &p);
   else
     w->method = p.method;
 
@@ -299,4 +302,59 @@ potsynth_get_info(potsynth_info * info, const potsynth_workspace * w)
     }
 
   return POTSYNTH_SUCCESS;
+}
+
+/*
+auto_method()
+  Choose the evaluation method for POTSYNTH_METHOD_AUTO
+
+Inputs: lmax   - maximum SH degree
+        nchan  - number of channels
+        params - parameters (eps, npts_hint)
+
+Return: POTSYNTH_METHOD_FAST or POTSYNTH_METHOD_DIRECT
+
+Notes:
+1) Without a hint (npts_hint = 0), the fast method is used for
+lmax >= POTSYNTH_AUTO_LMIN
+
+2) With a hint, the method with the smaller estimated total time for
+npts_hint points is chosen:
+
+fast:   t_setup + n t_fast,   direct: n t_direct
+
+with the empirical cost models (seconds; measured on 16 threads, consistent
+with the measured break-even points to within about a factor 2, and near the
+break-even both methods cost about the same):
+
+t_setup  = 6.3e-12 nch L^3 + 7.8e-8 nch L^2
+t_direct = 3.5e-11 L^2 (1 + (nchan - 1)/2)
+t_fast   = 1.5e-11 w^2 nch + 5e-8
+
+where nch = nchan * rho is the number of grid channels; the radial rank is
+estimated from eps as rho ~ 2 + 0.7 log10(1/eps)
+*/
+
+static int
+auto_method(const size_t lmax, const size_t nchan, const potsynth_parameters * params)
+{
+  if (params->npts_hint == 0)
+    {
+      return (lmax >= POTSYNTH_AUTO_LMIN) ? POTSYNTH_METHOD_FAST : POTSYNTH_METHOD_DIRECT;
+    }
+  else
+    {
+      const double L = (double) lmax;
+      const double n = (double) params->npts_hint;
+      const double sigma = (params->sigma > 0.0) ? params->sigma : 2.0;
+      const double ww = (params->w > 0) ? (double) params->w :
+                        (double) potsynth_window_choose(params->eps, sigma);
+      const double rho = 2.0 + 0.7 * fmax(0.0, -log10(params->eps));
+      const double nch = (double) nchan * rho;
+      const double t_setup = 6.3e-12 * nch * L * L * L + 7.8e-8 * nch * L * L;
+      const double t_direct = 3.5e-11 * L * L * (1.0 + 0.5 * ((double) nchan - 1.0));
+      const double t_fast = 1.5e-11 * ww * ww * nch + 5.0e-8;
+
+      return (t_setup + n * t_fast < n * t_direct) ? POTSYNTH_METHOD_FAST : POTSYNTH_METHOD_DIRECT;
+    }
 }

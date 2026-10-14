@@ -61,7 +61,7 @@ extern "C" {
 #define POTSYNTH_THETA_PSIN          2 /* Pbar_l^m / sin(theta), m >= 1, computed without dividing by sin(theta) */
 
 /* evaluation methods */
-#define POTSYNTH_METHOD_AUTO         0 /* fast or direct, chosen from lmax */
+#define POTSYNTH_METHOD_AUTO         0 /* fast or direct, chosen from lmax (and npts_hint) */
 #define POTSYNTH_METHOD_FAST         1 /* gridded transform */
 #define POTSYNTH_METHOD_DIRECT       2 /* point-by-point sum */
 
@@ -99,6 +99,8 @@ typedef struct
   int w;                /* window width; 0 = chosen from eps */
   double rank_tol;      /* radial SVD tolerance; 0 = 0.1 * eps */
   int nthreads;         /* OpenMP threads; 0 = all available */
+  size_t npts_hint;     /* expected number of evaluation points, used by METHOD_AUTO to
+                           choose the faster method including set-up; 0 = unknown */
 } potsynth_parameters;
 
 typedef struct

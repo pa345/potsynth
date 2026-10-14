@@ -121,6 +121,13 @@ def test_api():
         except potsynth.PotsynthError as e:
             check(e.status == 4 and "time-dependent" in str(e), "time-dependent SHC error")
 
+    # npts_hint: few points -> direct, many -> fast (L = 60)
+    gh60 = np.ones(potsynth.nlm(1, 60, 60))
+    m_few = potsynth.MagModel(gh60, rmin=rmin, rmax=rmax, npts_hint=1000)
+    m_many = potsynth.MagModel(gh60, rmin=rmin, rmax=rmax, npts_hint=10_000_000)
+    check(m_few.info["method"] == "direct" and m_many.info["method"] == "fast",
+          f"npts_hint selection {m_few.info['method']} {m_many.info['method']}")
+
     print("  API checks done")
 
 

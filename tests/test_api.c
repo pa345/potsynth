@@ -119,6 +119,35 @@ test_api(void)
       potsynth_free(w1);
     }
 
+  /* METHOD_AUTO with npts_hint: total cost of set-up + evaluation decides */
+  {
+    const size_t L60 = 60;
+    double * gh60 = test_random_coef(1, L60, L60);
+    const size_t hints[] = { 1000, 10000000 };
+    const int expect60[] = { POTSYNTH_METHOD_DIRECT, POTSYNTH_METHOD_FAST };
+    size_t k;
+
+    for (k = 0; k < 2; ++k)
+      {
+        params = potsynth_default_parameters();
+        params.npts_hint = hints[k];
+        w1 = potsynth_mag_alloc(1, L60, L60, gh60, a, rmin, rmax, &params);
+        potsynth_get_info(&info, w1);
+        ps_test_int(info.method, expect60[k], "api: METHOD_AUTO L=60 npts_hint=%zu", hints[k]);
+        potsynth_free(w1);
+      }
+
+    /* at L = 13 the direct sum is cheaper per point: never the fast method */
+    params = potsynth_default_parameters();
+    params.npts_hint = 100000000;
+    w1 = potsynth_mag_alloc(1, 13, 13, gh60, a, rmin, rmax, &params);
+    potsynth_get_info(&info, w1);
+    ps_test_int(info.method, POTSYNTH_METHOD_DIRECT, "api: METHOD_AUTO L=13 npts_hint=1e8");
+    potsynth_free(w1);
+
+    free(gh60);
+  }
+
   /* invalid arguments */
   params = potsynth_default_parameters();
   ps_test(potsynth_mag_alloc(0, L, L, gh, a, rmin, rmax, &params) != NULL, "api: lmin = 0 rejected by mag");
