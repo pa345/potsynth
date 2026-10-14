@@ -104,8 +104,7 @@ The error codes are:
 Coefficient layout
 ==================
 
-Coefficients are passed as a single vector, using the same convention as mainlib's
-``green2``. For degrees :math:`l_{min} \le l \le l_{max}` and orders
+Coefficients are passed as a single vector. For degrees :math:`l_{min} \le l \le l_{max}` and orders
 :math:`|m| \le \min(l, m_{max})` the order is
 
 .. code-block:: text

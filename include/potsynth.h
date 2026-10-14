@@ -68,7 +68,7 @@ extern "C" {
 /*
 potsynth_idx()
   Index of SH coefficient (l,m) in a coefficient vector spanning degrees
-[lmin,lmax] and orders up to mmax (same convention as mainlib green2_idx):
+[lmin,lmax] and orders up to mmax:
 
 [ (lmin,-M) ... (lmin,M) (lmin+1,-M') ... (lmin+1,M') ... (lmax,M'') ]
 

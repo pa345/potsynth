@@ -190,7 +190,7 @@ potsynth_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const do
         w->rfac[c * L1 + l] = (chan[c].rfac != NULL) ? chan[c].rfac[l] : 1.0;
     }
 
-  /* public layout (green2 convention) -> internal M-major */
+  /* public layout (degree-major, potsynth_idx) -> internal M-major */
   for (l = lmin; l <= lmax; ++l)
     {
       const size_t M = (l < mmax) ? l : mmax;

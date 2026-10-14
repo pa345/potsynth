@@ -8,7 +8,7 @@ Usage: python gen_reference.py OUTDIR
 File format (little endian):
   int64  lmax, npts
   float64 a, rmin, rmax
-  float64 gh[ncoef]          Schmidt Gauss coefficients, green2 layout, lmin=1, mmax=lmax
+  float64 gh[ncoef]          Schmidt Gauss coefficients, potsynth_idx layout, lmin=1, mmax=lmax
   float64 r[npts], theta[npts], phi[npts]
   float64 Br[npts], Btheta[npts], Bphi[npts]
 """
@@ -42,7 +42,7 @@ def model(L, seed):
     return g, h
 
 
-def green2_vector(g, h):
+def coef_vector(g, h):
     L = g.shape[0] - 1
     out = []
     for l in range(1, L + 1):
@@ -70,7 +70,7 @@ def write(path, L, rmin, rmax, g, h, r, theta, phi, B):
     with open(path, "wb") as f:
         np.array([L, r.size], dtype="<i8").tofile(f)
         np.array([A, rmin, rmax], dtype="<f8").tofile(f)
-        green2_vector(g, h).astype("<f8").tofile(f)
+        coef_vector(g, h).astype("<f8").tofile(f)
         for v in (r, theta, phi):
             np.asarray(v, dtype="<f8").tofile(f)
         for v in B:

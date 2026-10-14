@@ -44,8 +44,9 @@ def nlm(lmin, lmax, mmax=None):
 
 
 def idx(l, m, lmin, mmax):
-    """Index of coefficient (l, m) in a coefficient vector (mainlib green2 layout):
-    m >= 0 indexes the cosine coefficient, m < 0 the sine coefficient of order |m|."""
+    """Index of coefficient (l, m) in a coefficient vector, stored degree by degree
+    with orders -M..M within each degree (M = min(l, mmax)): m >= 0 indexes the
+    cosine coefficient, m < 0 the sine coefficient of order |m|."""
     if lmin <= mmax:
         if l <= mmax:
             return l * (l + 1) + m - lmin * lmin

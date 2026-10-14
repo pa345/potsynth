@@ -54,8 +54,8 @@ Documentation: `doc/` (Sphinx). Build it with `make -C doc html`, then open
   - `potsynth_grav`: potential, gravity disturbance and anomaly, gradients (planned)
 - The model workspace is read-only after set-up and can be shared between threads.
   Evaluation does not allocate memory.
-- Coefficients use mainlib green2 layout. Internally all Legendre data are stored
-  M-major, in recursion order.
+- Coefficients are passed degree by degree, with orders -M..M within each degree (see
+  `potsynth_idx`). Internally all Legendre data are stored M-major, in recursion order.
 
 ## Example
 
