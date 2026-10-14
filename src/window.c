@@ -88,6 +88,15 @@ ps_gauss_legendre(size_t n, double *x, double *w)
     }
 }
 
+/*
+ * phi_hat(k) = alpha * int_{-1}^{1} phi(z) cos(k alpha z) dz,  alpha = w h / 2.
+ *
+ * phi has a square-root singularity at z = +-1 (of size e^-beta, not negligible
+ * for small w), which limits Gauss-Legendre in z to algebraic convergence. With
+ * z = sin(t), sqrt(1 - z^2) = cos(t) and the integrand
+ *   exp(beta (cos t - 1)) cos(k alpha sin t) cos t,  t in [-pi/2, pi/2]
+ * is entire, so Gauss-Legendre in t converges exponentially.
+ */
 int
 ps_window_ft(size_t nk, int w, double beta, double h, double *out)
 {
@@ -107,7 +116,13 @@ ps_window_ft(size_t nk, int w, double beta, double h, double *out)
   ps_gauss_legendre(nq, zq, wq);
 
   for (q = 0; q < nq; ++q)
-    wq[q] *= ps_window(zq[q], beta);
+    {
+      const double t = 0.5 * M_PI * zq[q];
+      const double ct = cos(t);
+
+      zq[q] = sin(t);
+      wq[q] *= 0.5 * M_PI * ct * exp(beta * (ct - 1.0));
+    }
 
   for (k = 0; k < nk; ++k)
     {

@@ -178,7 +178,7 @@ direct_order_generic(size_t nchan, const double *Wm, size_t nn, const double *ab
     }
 }
 
-#if defined(__GNUC__) || defined(__clang__)
+#ifdef PS_HAVE_VECEXT
 
 /* specialised versions for NCH channels: 4 points per vector, all accumulators
  * in vector registers (about 3x faster than the generic version) */

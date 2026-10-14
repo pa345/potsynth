@@ -24,6 +24,12 @@
 #define M_LN2  0.69314718055994530941723212145817657
 #endif
 
+/* GCC/Clang vector extensions for the hot kernels; POTSYNTH_NO_VECEXT forces the
+ * portable scalar code (used by other compilers, and tested) */
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(POTSYNTH_NO_VECEXT)
+#define PS_HAVE_VECEXT 1
+#endif
+
 /* block size for vectorised loops over nodes/points; one cache line of doubles */
 #define PS_NB            8
 

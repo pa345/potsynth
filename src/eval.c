@@ -189,7 +189,7 @@ validate(const potsynth_workspace *w, size_t npts, const double *r, const double
  * accumulators in vector registers. Each window row is a contiguous run of
  * w*nchp values.
  */
-#if defined(__GNUC__) || defined(__clang__)
+#ifdef PS_HAVE_VECEXT
 
 /* 4 doubles; aligned(8) permits unaligned access (the grid is in fact 32-byte
  * aligned here, since nchp is a multiple of 4 and the grid 64-byte aligned) */
