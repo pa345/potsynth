@@ -38,6 +38,10 @@ jobs:
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
 
+      - name: Report failures
+        if: failure()
+        run: python .github/ci_report.py build
+
       - name: Run the examples
         if: matrix.shared == 'OFF'
         shell: bash
@@ -62,3 +66,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y libgsl-dev
       - name: check.sh
         run: bash tests/check.sh
+
+      - name: Report failures
+        if: failure()
+        run: python .github/ci_report.py build-check
