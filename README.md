@@ -50,8 +50,10 @@ Documentation: `doc/` (Sphinx). Build it with `make -C doc html`, then open
   P/sin(theta) and dP/dtheta are never formed by dividing by sin(theta).
 - A generic core evaluates linear functionals ("channels") of an internal potential.
   Front-ends map physical quantities onto channels:
-  - `potsynth_mag`: B = -grad V from Schmidt-normalized Gauss coefficients
-  - `potsynth_grav`: potential V and acceleration g = grad V from fully normalized
+  - `potsynth_mag`: B = -grad V and its gradient tensor grad B from Schmidt-normalized
+    Gauss coefficients
+  - `potsynth_grav`: potential V, acceleration g = grad V and gravity gradient tensor
+    T = grad grad V from fully normalized
     coefficients, with an ICGEM `.gfc` reader. Only the synthesis is computed; normal
     field, gravity anomalies and geoid heights are left to the user.
 - The model workspace is read-only after set-up and can be shared between threads.
@@ -71,7 +73,7 @@ int status;
 
 params.eps = 1.0e-10;
 
-w = potsynth_mag_alloc(1, lmax, lmax, gh, 6371.2, rmin, rmax, &params);
+w = potsynth_mag_alloc(1, lmax, lmax, gh, 6371.2, rmin, rmax, POTSYNTH_MAG_B, &params);
 ew = potsynth_eval_alloc(0, w);
 
 /* B[0..n) = B_r, B[n..2n) = B_theta, B[2n..3n) = B_phi */
@@ -93,7 +95,7 @@ Br, Btheta, Bphi = model(r, theta, phi)
 ```
 
 Models in the Swarm SHC format (e.g. LCS-1) can be read directly:
-`potsynth_mag_alloc_shc("LCS-1.shc", 6371.2, rmin, rmax, &params)` in C, or
+`potsynth_mag_alloc_shc("LCS-1.shc", 6371.2, rmin, rmax, POTSYNTH_MAG_B, &params)` in C, or
 `potsynth.MagModel.from_shc("LCS-1.shc", rmin=rmin, rmax=rmax)` in Python.
 
 Gravity models in the ICGEM format (e.g. EGM2008, here truncated at degree 720) give the

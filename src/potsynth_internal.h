@@ -39,6 +39,7 @@
 #define POTSYNTH_ALF_SCALEMAX        1000   /* largest power-of-2 column scaling (bounds the degree) */
 #define POTSYNTH_WMAX                16     /* largest window width in the calibration tables */
 #define POTSYNTH_AUTO_LMIN           24     /* METHOD_AUTO uses the fast method for lmax >= this */
+#define POTSYNTH_OMAP_MAX            16     /* largest number of channels with an output map */
 
 /* report an error through the error handler and return */
 #define POTSYNTH_ERROR(reason, potsynth_errno) \
@@ -99,6 +100,10 @@ struct potsynth_workspace
   int * theta_op;       /* theta operators, length nchan */
   int * dphi;           /* phi derivatives, length nchan */
   double * rfac;        /* per-degree factors, rfac[c*(lmax+1) + l] */
+
+  /* outputs: linear combinations of the channels at each point (front-ends) */
+  size_t nout;          /* outputs per point (= nchan without a map) */
+  double * omap;        /* output k = sum_c omap[k*nchan + c] channel c, or NULL (outputs = channels) */
 
   /* coefficients, 4-pi normalized, M-major: C[idx(l,m)], S[idx(l,m)] */
   double * C;
@@ -219,6 +224,11 @@ potsynth_radial_workspace * potsynth_radial_alloc(const double u0, const double 
                                                   const double * wn, const double tol);
 void potsynth_radial_free(potsynth_radial_workspace * w);
 int potsynth_svd_jacobi(const size_t n, const size_t p, double * X, double * V, double * sv);
+
+/* setup.c */
+int potsynth_set_outputs(potsynth_workspace * w, const size_t nout, const double * map);
+void potsynth_tensor_channels(const size_t lmax, const double f, potsynth_channel * chan, double * rfac);
+void potsynth_tensor_map(const size_t nchan, const size_t c0, double * map);
 
 /* util.c */
 void * potsynth_aligned_alloc(const size_t nbytes);

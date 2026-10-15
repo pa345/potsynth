@@ -61,7 +61,7 @@ test_threads_method(const int method)
   test_random_points(n, rmin, rmax, r, theta, phi);
 
   params.method = method;
-  w = potsynth_mag_alloc(1, L, L, gh, a, rmin, rmax, &params);
+  w = potsynth_mag_alloc(1, L, L, gh, a, rmin, rmax, POTSYNTH_MAG_B, &params);
 
   ew = potsynth_eval_alloc(0, w);
   potsynth_eval(n, r, theta, phi, Bs, ew);

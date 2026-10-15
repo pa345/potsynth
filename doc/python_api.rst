@@ -27,10 +27,11 @@ evaluated. To build and load the library, see :ref:`installation <python-install
 Magnetic models
 ===============
 
-.. py:class:: MagModel(gh, lmax=None, lmin=1, mmax=None, a=6371.2, rmin=0.0, rmax=0.0, eps=1e-10, method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0, npts_hint=0)
+.. py:class:: MagModel(gh, lmax=None, lmin=1, mmax=None, a=6371.2, rmin=0.0, rmax=0.0, eps=1e-10, method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0, npts_hint=0, quantities="B")
 
    An internal magnetic field model :math:`\mathbf{B} = -\nabla V`, where :math:`V` is
-   given by Schmidt semi-normalized Gauss coefficients (:eq:`mag_potential`).
+   given by Schmidt semi-normalized Gauss coefficients (:eq:`mag_potential`), and
+   optionally its gradient tensor :math:`\nabla\mathbf{B}`.
 
    :param gh: Gauss coefficients in nT, in one of two forms:
 
@@ -55,6 +56,9 @@ Magnetic models
    :param int w: expert override: window width; 0 means automatic
    :param float rank_tol: expert override: radial SVD tolerance; 0 means automatic
    :param int chunk: points per internal chunk; 0 means the default
+   :param quantities: ``"B"`` (the field, nT) and/or ``"gradB"`` (the gradient tensor
+      :math:`\nabla\mathbf{B} = -\nabla\nabla V`, nT/km), as a list or a
+      comma-separated string
 
    The set-up is done in the constructor. Choose :math:`[r_{\min}, r_{\max}]` as
    tight as the data allow.
@@ -66,18 +70,24 @@ Magnetic models
       :param r: radius in km
       :param theta: colatitude in radians, :math:`[0, \pi]`
       :param phi: longitude in radians
-      :returns: ``(Br, Btheta, Bphi)`` in nT, each with the broadcast shape of the
-         inputs
+      :returns: a named tuple with the requested quantities, each with the broadcast
+         shape of the inputs: ``B_r``, ``B_theta``, ``B_phi`` (nT), then ``dB_rr``,
+         ``dB_rt``, ``dB_rp``, ``dB_tt``, ``dB_tp``, ``dB_pp`` (nT/km, spherical basis).
+         With ``quantities="B"`` it unpacks as ``Br, Btheta, Bphi = model(r, theta, phi)``.
 
       Inputs may be scalars or arrays of any broadcastable shapes. Points with a NaN
       coordinate give NaN outputs. :py:exc:`DomainError` is raised if a point lies
       outside the valid domain.
 
+   .. py:attribute:: quantities
+
+      The names of the outputs, for example ``("B_r", "B_theta", "B_phi")``.
+
    .. py:attribute:: info
 
       A dictionary of the parameters chosen during set-up: ``method``, ``w``,
       ``sigma``, ``rho``, ``ncheb``, ``nf1``, ``nf2``, ``nrows``, ``grid_bytes``,
-      ``lmin``, ``lmax``, ``mmax`` and ``nchan``.
+      ``lmin``, ``lmax``, ``mmax``, ``nchan`` and ``nout``.
 
    .. py:classmethod:: from_shc(filename, a=6371.2, rmin=0.0, rmax=0.0, **kwargs)
 
@@ -125,9 +135,11 @@ Gravity models
    :param int lmin: minimum degree, :math:`\ge 0`
    :param int mmax: maximum order; default ``lmax``
    :param quantities: any of ``"V"`` (potential, m\ :sup:`2`/s\ :sup:`2`), ``"g_r"``
-      (radial acceleration, m/s\ :sup:`2`) and ``"g"`` (acceleration
-      :math:`g_r, g_\theta, g_\phi`, m/s\ :sup:`2`), as a list or a comma-separated
-      string. Each quantity adds to the set-up time and memory of the fast method.
+      (radial acceleration, m/s\ :sup:`2`), ``"g"`` (acceleration
+      :math:`g_r, g_\theta, g_\phi`, m/s\ :sup:`2`) and ``"T"`` (gravity gradient tensor,
+      s\ :sup:`-2`; :math:`1\ \mathrm{E} = 10^{-9}` s\ :sup:`-2`), as a list or a
+      comma-separated string. Each quantity adds to the set-up time and memory of the
+      fast method.
    :param float rmin: smallest radius (m) at which the model will be evaluated.
       Required by the fast method; ignored by the direct method.
    :param float rmax: largest radius (m), as for ``rmin``
@@ -143,7 +155,8 @@ Gravity models
       :param theta: colatitude in radians, :math:`[0, \pi]`
       :param phi: longitude in radians
       :returns: a named tuple with the requested quantities, in the order ``V``,
-         ``g_r``, ``g_theta``, ``g_phi``, each with the broadcast shape of the inputs.
+         ``g_r``, ``g_theta``, ``g_phi``, ``T_rr``, ``T_rt``, ``T_rp``, ``T_tt``,
+         ``T_tp``, ``T_pp``, each with the broadcast shape of the inputs.
          :math:`g_r` is negative (towards the centre) and :math:`g_\theta` is positive
          southwards.
 
@@ -182,6 +195,36 @@ Gravity models
    from ``coef`` before building the model, for example
    ``coef[potsynth.idx(2, 0, 0, lmax)] -= C20_normal``. The normal coefficients must
    first be rescaled to the model's ``GM`` and ``a``.
+
+Gradient tensors
+================
+
+``MagModel(..., quantities="gradB")`` and ``GravModel(..., quantities="T")`` return the
+gradient tensor as six components in the spherical basis (see :ref:`gradient-tensor`).
+These functions convert them; all accept arrays of any broadcastable shapes.
+
+.. code-block:: python
+
+   field = model(r, theta, phi)                       # MagModel, quantities="B,gradB"
+   dB = field[3:]                                     # dB_rr, dB_rt, ..., dB_pp
+   NN, NE, NC, EE, EC, CC = potsynth.tensor_rtp_to_nec(*dB)
+   M = potsynth.tensor_matrix(*dB)                    # shape (..., 3, 3)
+
+.. py:function:: tensor_rtp_to_nec(rr, rt, rp, tt, tp, pp)
+
+   Returns the North-East-Center components (NN, NE, NC, EE, EC, CC), with
+   :math:`\hat{e}_N = -\hat{\theta}`, :math:`\hat{e}_E = \hat{\phi}`,
+   :math:`\hat{e}_C = -\hat{r}` (see :c:func:`potsynth_tensor_rtp2nec`).
+
+.. py:function:: tensor_rtp_to_xyz(theta, phi, rr, rt, rp, tt, tp, pp)
+
+   Returns the Earth-fixed Cartesian components (xx, xy, xz, yy, yz, zz) at colatitude
+   ``theta`` and longitude ``phi`` (radians). Unlike the spherical components, these are
+   unique at the poles (see :c:func:`potsynth_tensor_rtp2xyz`).
+
+.. py:function:: tensor_matrix(t11, t12, t13, t22, t23, t33)
+
+   Assembles the six components into symmetric matrices of shape ``(..., 3, 3)``.
 
 Generic models
 ==============

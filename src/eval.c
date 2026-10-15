@@ -50,6 +50,7 @@ static void fast_point(const double r, const double theta, const double phi, con
                        double * out, double * scratch, const potsynth_workspace * w);
 static int eval_fast(const size_t n, const double * r, const double * theta, const double * phi,
                      double * out, potsynth_eval_workspace * ew);
+static void eval_outputs(const size_t n, double * out, potsynth_eval_workspace * ew);
 static int eval_direct(const size_t n, const double * r, const double * theta, const double * phi,
                        double * out, potsynth_eval_workspace * ew);
 
@@ -144,7 +145,8 @@ Inputs: n     - number of points
         r     - radius, length n
         theta - colatitude in [0,pi] (radians), length n
         phi   - longitude (radians), any finite value, length n
-        out   - (output) channel-major, out[c*n + i], length nchan*n
+        out   - (output) output-major, out[k*n + i], length nout*n (nout = number
+                of channels, or the outputs defined by a front-end)
         ew    - evaluation workspace
 
 Return: success or error
@@ -182,9 +184,61 @@ potsynth_eval(const size_t n, const double * r, const double * theta, const doub
         }
 
       if (ew->w->method == POTSYNTH_METHOD_FAST)
-        return eval_fast(n, r, theta, phi, out, ew);
+        status = eval_fast(n, r, theta, phi, out, ew);
       else
-        return eval_direct(n, r, theta, phi, out, ew);
+        status = eval_direct(n, r, theta, phi, out, ew);
+
+      if (status == POTSYNTH_SUCCESS && ew->w->omap != NULL)
+        eval_outputs(n, out, ew);
+
+      return status;
+    }
+}
+
+/*
+eval_outputs()
+  Replace the channel values by the outputs of the front-end map, in place
+
+Inputs: n   - number of points
+        out - channel values out[c*n + i] on input, outputs out[k*n + i] on output
+        ew  - evaluation workspace
+
+Notes:
+1) Each point is independent: its channel values are read before any of its
+outputs are written
+*/
+
+static void
+eval_outputs(const size_t n, double * out, potsynth_eval_workspace * ew)
+{
+  const potsynth_workspace * w = ew->w;
+  const size_t nchan = w->nchan;
+  const size_t nout = w->nout;
+  long ii;
+
+#pragma omp parallel for private(ii) schedule(static) num_threads(ew->nthreads) if (n > 100000)
+  for (ii = 0; ii < (long) n; ++ii)
+    {
+      const size_t i = (size_t) ii;
+      double v[POTSYNTH_OMAP_MAX];
+      size_t c, k;
+
+      for (c = 0; c < nchan; ++c)
+        v[c] = out[c * n + i];
+
+      for (k = 0; k < nout; ++k)
+        {
+          const double * mk = w->omap + k * nchan;
+          double sum = 0.0;
+
+          for (c = 0; c < nchan; ++c)
+            {
+              if (mk[c] != 0.0)
+                sum += mk[c] * v[c];
+            }
+
+          out[k * n + i] = sum;
+        }
     }
 }
 

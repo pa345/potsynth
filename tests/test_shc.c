@@ -96,8 +96,8 @@ test_shc_valid(void)
     }
 
   params.method = POTSYNTH_METHOD_DIRECT;
-  w1 = potsynth_mag_alloc_shc(TEST_SHC_FILE, a, a, a + 100.0, &params);
-  w2 = potsynth_mag_alloc(shc->lmin, shc->lmax, shc->mmax, shc->gh, a, a, a + 100.0, &params);
+  w1 = potsynth_mag_alloc_shc(TEST_SHC_FILE, a, a, a + 100.0, POTSYNTH_MAG_B, &params);
+  w2 = potsynth_mag_alloc(shc->lmin, shc->lmax, shc->mmax, shc->gh, a, a, a + 100.0, POTSYNTH_MAG_B, &params);
   ew1 = potsynth_eval_alloc(0, w1);
   ew2 = potsynth_eval_alloc(0, w2);
   potsynth_eval(n, r, theta, phi, B1, ew1);

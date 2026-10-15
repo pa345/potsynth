@@ -108,7 +108,7 @@ main(int argc, char * argv[])
   params.nthreads = nthreads;
 
   t0 = now();
-  w = potsynth_mag_alloc(1, lmax, lmax, gh, a, rmin, rmax, &params);
+  w = potsynth_mag_alloc(1, lmax, lmax, gh, a, rmin, rmax, POTSYNTH_MAG_B, &params);
   t_setup = now() - t0;
   if (w == NULL)
     {
@@ -133,7 +133,7 @@ main(int argc, char * argv[])
       potsynth_eval_workspace * ewd;
 
       params.method = POTSYNTH_METHOD_DIRECT;
-      wd = potsynth_mag_alloc(1, lmax, lmax, gh, a, rmin, rmax, &params);
+      wd = potsynth_mag_alloc(1, lmax, lmax, gh, a, rmin, rmax, POTSYNTH_MAG_B, &params);
       ewd = potsynth_eval_alloc(0, wd);
 
       t0 = now();

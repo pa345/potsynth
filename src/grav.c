@@ -9,7 +9,9 @@
  * g_theta =  GM/a^2 \sum (a/r)^(l+2) [ C cos(m phi) + S sin(m phi) ] dPbar_l^m/dtheta
  * g_phi   =  GM/a^2 \sum (a/r)^(l+2) d/dphi [ C cos(m phi) + S sin(m phi) ] Pbar_l^m / sin(theta)
  *
- * The coefficients are already in the core normalization.
+ * and the gravity gradient tensor T = grad grad V from the five tensor channels
+ * of potsynth_tensor_channels() with scale GM/a^3, with an output map giving
+ * its six components. The coefficients are already in the core normalization.
  *
  * Copyright (C) 2026 Patrick Alken and Johnathan Burchill, BSD 3-Clause License
  */
@@ -21,20 +23,21 @@
 #include "potsynth_grav.h"
 
 /*
-potsynth_grav_nchan()
-  Number of output channels for a set of quantities
+potsynth_grav_nout()
+  Number of outputs per point for a set of quantities
 
 Inputs: quantities - POTSYNTH_GRAV_xxx flags
 
-Return: number of channels (0 if quantities is invalid)
+Return: number of outputs (0 if quantities is invalid)
 */
 
 size_t
-potsynth_grav_nchan(const int quantities)
+potsynth_grav_nout(const int quantities)
 {
   size_t n = 0;
 
-  if (quantities <= 0 || (quantities & ~(POTSYNTH_GRAV_V | POTSYNTH_GRAV_GR | POTSYNTH_GRAV_G)))
+  if (quantities <= 0 ||
+      (quantities & ~(POTSYNTH_GRAV_V | POTSYNTH_GRAV_GR | POTSYNTH_GRAV_G | POTSYNTH_GRAV_T)))
     return 0;
 
   if (quantities & POTSYNTH_GRAV_V)
@@ -44,6 +47,9 @@ potsynth_grav_nchan(const int quantities)
     n += 3;
   else if (quantities & POTSYNTH_GRAV_GR)
     ++n;
+
+  if (quantities & POTSYNTH_GRAV_T)
+    n += 6;
 
   return n;
 }
@@ -62,16 +68,17 @@ Inputs: lmin       - minimum SH degree (>= 0)
         a          - reference radius (m)
         rmin       - minimum radius of evaluation points (m), fast method
         rmax       - maximum radius of evaluation points (m), fast method
-        quantities - POTSYNTH_GRAV_xxx flags (V, GR, G)
+        quantities - POTSYNTH_GRAV_xxx flags (V, GR, G, T)
         params     - parameters, or NULL for defaults
 
 Return: pointer to workspace, or NULL on error
 
 Notes:
-1) Evaluate with potsynth_eval(), with r in m. The output channels are, in
-this order and as selected by quantities: V (m^2/s^2), g_r (m/s^2), and
-g_theta, g_phi (m/s^2, with POTSYNTH_GRAV_G). g_r is negative (pointing
-towards the center), g_theta is positive southwards
+1) Evaluate with potsynth_eval(), with r in m. The outputs are, in this
+order and as selected by quantities: V (m^2/s^2), g_r (m/s^2), and g_theta,
+g_phi (m/s^2, with POTSYNTH_GRAV_G), then the gradient tensor T_rr, T_rt,
+T_rp, T_tt, T_tp, T_pp (1/s^2, with POTSYNTH_GRAV_T). g_r is negative
+(pointing towards the center), g_theta is positive southwards
 
 2) Each extra channel adds to the set-up time and grid memory of the fast
 method; request only the quantities needed
@@ -86,13 +93,14 @@ potsynth_grav_alloc(const size_t lmin, const size_t lmax, const size_t mmax, con
                     const int quantities, const potsynth_parameters * params)
 {
   const size_t L1 = lmax + 1;
-  const size_t nchan = potsynth_grav_nchan(quantities);
-  potsynth_channel chan[4];
+  const size_t nout = potsynth_grav_nout(quantities);
+  const int wantT = (quantities & POTSYNTH_GRAV_T) != 0;
+  potsynth_channel chan[9];
   potsynth_workspace * w;
-  double * rfac_v, * rfac_r, * rfac_g;
+  double * rfac_v, * rfac_r, * rfac_g, * rfac_t;
   size_t c = 0, l;
 
-  if (nchan == 0)
+  if (nout == 0)
     {
       POTSYNTH_ERROR_NULL ("invalid quantities", POTSYNTH_EINVAL);
     }
@@ -112,11 +120,13 @@ potsynth_grav_alloc(const size_t lmin, const size_t lmax, const size_t mmax, con
   rfac_v = malloc(L1 * sizeof(double));
   rfac_r = malloc(L1 * sizeof(double));
   rfac_g = malloc(L1 * sizeof(double));
-  if (!rfac_v || !rfac_r || !rfac_g)
+  rfac_t = malloc(5 * L1 * sizeof(double));
+  if (!rfac_v || !rfac_r || !rfac_g || !rfac_t)
     {
       free(rfac_v);
       free(rfac_r);
       free(rfac_g);
+      free(rfac_t);
       POTSYNTH_ERROR_NULL ("unable to allocate radial factors", POTSYNTH_ENOMEM);
     }
 
@@ -164,11 +174,39 @@ potsynth_grav_alloc(const size_t lmin, const size_t lmax, const size_t mmax, con
       ++c;
     }
 
-  w = potsynth_alloc(lmin, lmax, mmax, coef, a, rmin, rmax, nchan, chan, params);
+  /* T = grad grad V, V = GM/a sum (a/r)^(l+1) ...: scale GM/a^3 */
+  if (wantT)
+    {
+      potsynth_tensor_channels(lmax, GM / (a * a * a), chan + c, rfac_t);
+      c += 5;
+    }
+
+  w = potsynth_alloc(lmin, lmax, mmax, coef, a, rmin, rmax, c, chan, params);
 
   free(rfac_v);
   free(rfac_r);
   free(rfac_g);
+  free(rfac_t);
+
+  if (w != NULL && wantT)
+    {
+      const size_t c0 = c - 5; /* first tensor channel = number of V, g outputs */
+      double map[10 * 9] = { 0.0 };
+      size_t k;
+      int status;
+
+      for (k = 0; k < c0; ++k)
+        map[k * c + k] = 1.0;
+
+      potsynth_tensor_map(c, c0, map + c0 * c);
+
+      status = potsynth_set_outputs(w, nout, map);
+      if (status)
+        {
+          potsynth_free(w);
+          return NULL; /* reported by potsynth_set_outputs() */
+        }
+    }
 
   return w;
 }

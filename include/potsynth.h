@@ -113,6 +113,8 @@ typedef struct
   size_t lmax;          /* maximum SH degree */
   size_t mmax;          /* maximum SH order */
   size_t nchan;         /* number of channels */
+  size_t nout;          /* outputs per point written by potsynth_eval() (= nchan, or more with
+                           a front-end output map, e.g. 6 tensor components from 5 channels) */
   int method;           /* method selected (POTSYNTH_METHOD_FAST or POTSYNTH_METHOD_DIRECT) */
   int w;                /* window width */
   double sigma;         /* oversampling factor */
@@ -158,6 +160,10 @@ POTSYNTH_API potsynth_workspace * potsynth_alloc(const size_t lmin, const size_t
                                                  const potsynth_parameters * params);
 POTSYNTH_API void potsynth_free(potsynth_workspace * w);
 POTSYNTH_API int potsynth_get_info(potsynth_info * info, const potsynth_workspace * w);
+
+/* frame.c */
+POTSYNTH_API void potsynth_tensor_rtp2nec(const size_t n, double * T);
+POTSYNTH_API void potsynth_tensor_rtp2xyz(const size_t n, const double * theta, const double * phi, double * T);
 
 /* eval.c */
 POTSYNTH_API potsynth_eval_workspace * potsynth_eval_alloc(const size_t chunk, const potsynth_workspace * w);

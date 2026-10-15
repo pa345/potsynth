@@ -79,9 +79,14 @@ The core of the library is generic. It evaluates any set of *channels*, meaning 
 functionals of a potential such as :math:`V`, its radial derivative, or its horizontal
 gradient. Two front-ends supply the usual quantities:
 
-- **Magnetic:** :math:`B_r, B_\theta, B_\phi` from Gauss coefficients.
-- **Gravity:** the potential :math:`V` and the acceleration
-  :math:`g_r, g_\theta, g_\phi` from fully normalized coefficients.
+- **Magnetic:** :math:`B_r, B_\theta, B_\phi` and the gradient tensor
+  :math:`\nabla\mathbf{B}` from Gauss coefficients.
+- **Gravity:** the potential :math:`V`, the acceleration :math:`g_r, g_\theta, g_\phi`
+  and the gravity gradient tensor :math:`\nabla\nabla V` from fully normalized
+  coefficients.
+
+Gradient tensors are exact at the poles too: the second derivatives are computed
+without dividing by :math:`\sin\theta` (see :ref:`gradient-tensor`).
 
 potsynth computes the spherical harmonic synthesis only. Geodetic quantities built on top
 of it, such as the normal field, gravity disturbances and anomalies, and geoid heights,

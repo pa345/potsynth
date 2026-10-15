@@ -137,7 +137,7 @@ main(int argc, char * argv[])
   params.eps = 1.0e-10; /* requested relative accuracy */
 
   t0 = now();
-  w = potsynth_mag_alloc(shc->lmin, shc->lmax, shc->mmax, shc->gh, a, rmin, rmax, &params);
+  w = potsynth_mag_alloc(shc->lmin, shc->lmax, shc->mmax, shc->gh, a, rmin, rmax, POTSYNTH_MAG_B, &params);
   if (w == NULL)
     exit(1);
 
@@ -160,7 +160,7 @@ main(int argc, char * argv[])
 
   /* 5. compare the first points with the direct sum */
   params.method = POTSYNTH_METHOD_DIRECT;
-  wd = potsynth_mag_alloc(shc->lmin, shc->lmax, shc->mmax, shc->gh, a, rmin, rmax, &params);
+  wd = potsynth_mag_alloc(shc->lmin, shc->lmax, shc->mmax, shc->gh, a, rmin, rmax, POTSYNTH_MAG_B, &params);
   ewd = potsynth_eval_alloc(0, wd);
   potsynth_eval(ndirect, r, theta, phi, Bd, ewd);
 

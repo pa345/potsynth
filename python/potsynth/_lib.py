@@ -67,6 +67,7 @@ class Info_t(ctypes.Structure):
                 ("lmax", ctypes.c_size_t),
                 ("mmax", ctypes.c_size_t),
                 ("nchan", ctypes.c_size_t),
+                ("nout", ctypes.c_size_t),
                 ("method", ctypes.c_int),
                 ("w", ctypes.c_int),
                 ("sigma", ctypes.c_double),
@@ -124,7 +125,7 @@ lib.potsynth_alloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t
 lib.potsynth_mag_alloc.restype = ctypes.c_void_p
 lib.potsynth_mag_alloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, c_double_p,
                                    ctypes.c_double, ctypes.c_double, ctypes.c_double,
-                                   ctypes.POINTER(Params_t)]
+                                   ctypes.c_int, ctypes.POINTER(Params_t)]
 
 lib.potsynth_shc_read.restype = ctypes.POINTER(Shc_t)
 lib.potsynth_shc_read.argtypes = [ctypes.c_char_p]

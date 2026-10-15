@@ -28,7 +28,7 @@ test_api(void)
   test_random_points(n, rmin, rmax, r, theta, phi);
 
   params.method = POTSYNTH_METHOD_FAST;
-  w = potsynth_mag_alloc(1, L, L, gh, a, rmin, rmax, &params);
+  w = potsynth_mag_alloc(1, L, L, gh, a, rmin, rmax, POTSYNTH_MAG_B, &params);
   ew = potsynth_eval_alloc(0, w);
   ewsmall = potsynth_eval_alloc(777, w);
 
@@ -39,7 +39,7 @@ test_api(void)
 
   /* thread count does not change results (bitwise) */
   params.nthreads = 1;
-  w1 = potsynth_mag_alloc(1, L, L, gh, a, rmin, rmax, &params);
+  w1 = potsynth_mag_alloc(1, L, L, gh, a, rmin, rmax, POTSYNTH_MAG_B, &params);
   ew1 = potsynth_eval_alloc(0, w1);
   potsynth_eval(n, r, theta, phi, B2, ew1);
   ps_test(memcmp(B1, B2, 3 * n * sizeof(double)) != 0, "api: 1-thread results bitwise equal");
@@ -101,7 +101,7 @@ test_api(void)
 
   /* METHOD_AUTO uses the direct method at low degree; direct accepts any r > 0 */
   params = potsynth_default_parameters();
-  w1 = potsynth_mag_alloc(1, 13, 13, gh, a, 0.0, 0.0, &params);
+  w1 = potsynth_mag_alloc(1, 13, 13, gh, a, 0.0, 0.0, POTSYNTH_MAG_B, &params);
   ps_test(w1 == NULL, "api: METHOD_AUTO allocation at L=13");
   if (w1)
     {
@@ -131,7 +131,7 @@ test_api(void)
       {
         params = potsynth_default_parameters();
         params.npts_hint = hints[k];
-        w1 = potsynth_mag_alloc(1, L60, L60, gh60, a, rmin, rmax, &params);
+        w1 = potsynth_mag_alloc(1, L60, L60, gh60, a, rmin, rmax, POTSYNTH_MAG_B, &params);
         potsynth_get_info(&info, w1);
         ps_test_int(info.method, expect60[k], "api: METHOD_AUTO L=60 npts_hint=%zu", hints[k]);
         potsynth_free(w1);
@@ -140,7 +140,7 @@ test_api(void)
     /* at L = 13 the direct sum is cheaper per point: never the fast method */
     params = potsynth_default_parameters();
     params.npts_hint = 100000000;
-    w1 = potsynth_mag_alloc(1, 13, 13, gh60, a, rmin, rmax, &params);
+    w1 = potsynth_mag_alloc(1, 13, 13, gh60, a, rmin, rmax, POTSYNTH_MAG_B, &params);
     potsynth_get_info(&info, w1);
     ps_test_int(info.method, POTSYNTH_METHOD_DIRECT, "api: METHOD_AUTO L=13 npts_hint=1e8");
     potsynth_free(w1);
@@ -153,7 +153,7 @@ test_api(void)
     double * gh60 = test_random_coef(1, 60, 60);
 
     params = potsynth_default_parameters();
-    w1 = potsynth_mag_alloc(1, 60, 60, gh60, a, 0.0, 0.0, &params);
+    w1 = potsynth_mag_alloc(1, 60, 60, gh60, a, 0.0, 0.0, POTSYNTH_MAG_B, &params);
     ps_test(w1 == NULL, "api: METHOD_AUTO without radial range at L=60");
     if (w1)
       {
@@ -167,15 +167,15 @@ test_api(void)
 
   /* invalid arguments */
   params = potsynth_default_parameters();
-  ps_test(potsynth_mag_alloc(0, L, L, gh, a, rmin, rmax, &params) != NULL, "api: lmin = 0 rejected by mag");
+  ps_test(potsynth_mag_alloc(0, L, L, gh, a, rmin, rmax, POTSYNTH_MAG_B, &params) != NULL, "api: lmin = 0 rejected by mag");
   ps_test_int(test_last_error(), POTSYNTH_EINVAL, "api: lmin = 0 error code");
-  ps_test(potsynth_mag_alloc(1, L, L + 1, gh, a, rmin, rmax, &params) != NULL, "api: mmax > lmax rejected");
+  ps_test(potsynth_mag_alloc(1, L, L + 1, gh, a, rmin, rmax, POTSYNTH_MAG_B, &params) != NULL, "api: mmax > lmax rejected");
   params.method = POTSYNTH_METHOD_FAST;
-  ps_test(potsynth_mag_alloc(1, L, L, gh, a, rmax, rmin, &params) != NULL, "api: rmin > rmax rejected");
-  ps_test(potsynth_mag_alloc(1, 3000, 3000, gh, a, rmin, rmax, &params) != NULL, "api: lmax = 3000 rejected");
+  ps_test(potsynth_mag_alloc(1, L, L, gh, a, rmax, rmin, POTSYNTH_MAG_B, &params) != NULL, "api: rmin > rmax rejected");
+  ps_test(potsynth_mag_alloc(1, 3000, 3000, gh, a, rmin, rmax, POTSYNTH_MAG_B, &params) != NULL, "api: lmax = 3000 rejected");
   ps_test_int(test_last_error(), POTSYNTH_EUNSUP, "api: lmax = 3000 error code");
   params.eps = 0.0;
-  ps_test(potsynth_mag_alloc(1, L, L, gh, a, rmin, rmax, &params) != NULL, "api: eps = 0 rejected");
+  ps_test(potsynth_mag_alloc(1, L, L, gh, a, rmin, rmax, POTSYNTH_MAG_B, &params) != NULL, "api: eps = 0 rejected");
   test_last_error();
 
   /* NEC conversion */

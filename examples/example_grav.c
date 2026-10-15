@@ -96,7 +96,7 @@ main(int argc, char * argv[])
   const double rmin = 6378137.0 + 200.0e3;      /* radial range of the points (m) */
   const double rmax = 6378137.0 + 500.0e3;
   const int quantities = POTSYNTH_GRAV_V | POTSYNTH_GRAV_G;
-  const size_t nchan = potsynth_grav_nchan(quantities); /* V, g_r, g_theta, g_phi */
+  const size_t nchan = potsynth_grav_nout(quantities);  /* V, g_r, g_theta, g_phi */
   const size_t n = 1000000;                     /* number of points */
   const size_t ndirect = 1000;                  /* points compared with the direct sum */
   double * r = malloc(n * sizeof(double));

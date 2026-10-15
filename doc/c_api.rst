@@ -24,7 +24,7 @@ Typical use
 
    params.eps = 1.0e-10;                        /* requested accuracy */
 
-   w = potsynth_mag_alloc(1, lmax, lmax, gh, 6371.2, rmin, rmax, &params);
+   w = potsynth_mag_alloc(1, lmax, lmax, gh, 6371.2, rmin, rmax, POTSYNTH_MAG_B, &params);
    ew = potsynth_eval_alloc(0, w);
 
    /* B[0..n) = B_r, B[n..2n) = B_theta, B[2n..3n) = B_phi */
@@ -195,11 +195,28 @@ Parameters
 Magnetic front-end
 ==================
 
-.. c:function:: potsynth_workspace * potsynth_mag_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const double * gh, const double a, const double rmin, const double rmax, const potsynth_parameters * params)
+.. c:macro:: POTSYNTH_MAG_B
 
-   Builds a model of :math:`\mathbf{B} = -\nabla V` for the potential
-   :eq:`mag_potential`. Its three channels are :math:`B_r`, :math:`B_\theta` and
-   :math:`B_\phi`.
+   The field :math:`(B_r, B_\theta, B_\phi) = -\nabla V` (nT).
+
+.. c:macro:: POTSYNTH_MAG_GRADB
+
+   The gradient tensor :math:`\nabla\mathbf{B} = -\nabla\nabla V` (nT/km), as six
+   components :math:`\partial B_{rr}, \partial B_{r\theta}, \partial B_{r\phi},
+   \partial B_{\theta\theta}, \partial B_{\theta\phi}, \partial B_{\phi\phi}` in the
+   spherical basis (see :ref:`gradient-tensor`). The tensor is symmetric and traceless;
+   it is computed from five channels.
+
+The flags are combined with ``|``. The outputs are in the order :math:`B_r, B_\theta,
+B_\phi`, then the six tensor components, restricted to those requested. At the poles,
+the :math:`\theta` and :math:`\phi` components refer to the local frame defined by
+the longitude of the point; :c:func:`potsynth_tensor_rtp2xyz` gives components that are
+unique there.
+
+.. c:function:: potsynth_workspace * potsynth_mag_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const double * gh, const double a, const double rmin, const double rmax, const int quantities, const potsynth_parameters * params)
+
+   Builds a magnetic field model for the potential :eq:`mag_potential`: the field
+   :math:`\mathbf{B} = -\nabla V` and/or its gradient tensor.
 
    :param lmin: minimum degree, :math:`\ge 1`
    :param lmax: maximum degree, :math:`\le` :c:macro:`POTSYNTH_LMAX`
@@ -211,11 +228,28 @@ Magnetic front-end
       by the fast method; ignored by the direct method.
    :param rmax: largest radius (km) at which the model will be evaluated, as for
       ``rmin``
+   :param quantities: ``POTSYNTH_MAG_xxx`` flags
    :param params: parameters, or ``NULL`` for the defaults
    :returns: the workspace, or ``NULL`` on error (reported to the error handler)
 
    Choose :math:`[r_{min}, r_{max}]` as tight as the data allow. A narrower shell
    needs fewer radial functions, which makes evaluation faster.
+
+   For example, the field and its gradient tensor, 9 outputs per point:
+
+   .. code-block:: c
+
+      w = potsynth_mag_alloc(1, lmax, lmax, gh, 6371.2, rmin, rmax,
+                             POTSYNTH_MAG_B | POTSYNTH_MAG_GRADB, &params);
+      ew = potsynth_eval_alloc(0, w);
+      status = potsynth_eval(n, r, theta, phi, out, ew);  /* out: 9*n doubles */
+
+      potsynth_mag_rtp2nec(n, out);              /* B: rows 0-2 */
+      potsynth_tensor_rtp2nec(n, out + 3 * n);   /* grad B: rows 3-8 */
+
+.. c:function:: size_t potsynth_mag_nout(const int quantities)
+
+   The number of outputs per point for a set of flags, or 0 if the flags are invalid.
 
 .. c:function:: void potsynth_mag_rtp2nec(const size_t n, double * B)
 
@@ -271,7 +305,7 @@ core field models are of low degree, where a direct sum is already fast.
 
    Frees a model read by :c:func:`potsynth_shc_read`.
 
-.. c:function:: potsynth_workspace * potsynth_mag_alloc_shc(const char * filename, const double a, const double rmin, const double rmax, const potsynth_parameters * params)
+.. c:function:: potsynth_workspace * potsynth_mag_alloc_shc(const char * filename, const double a, const double rmin, const double rmax, const int quantities, const potsynth_parameters * params)
 
    Reads an SHC file and builds the magnetic field model, as
    :c:func:`potsynth_mag_alloc`.
@@ -305,10 +339,17 @@ set-up.
    The acceleration :math:`(g_r, g_\theta, g_\phi) = \nabla V` (m/s\ :sup:`2`), with
    :math:`g_\theta` positive southwards. It includes :c:macro:`POTSYNTH_GRAV_GR`.
 
-The flags are combined with ``|``. The output channels are in the order :math:`V, g_r,
-g_\theta, g_\phi`, restricted to those requested. Each channel adds to the set-up time
-and grid memory of the fast method, so request only what is needed: for example
-:c:macro:`POTSYNTH_GRAV_GR` alone for radial gravity.
+.. c:macro:: POTSYNTH_GRAV_T
+
+   The gravity gradient tensor :math:`T = \nabla\nabla V` (s\ :sup:`-2`;
+   :math:`1\ \mathrm{E} = 10^{-9}` s\ :sup:`-2`), as six components :math:`T_{rr},
+   T_{r\theta}, T_{r\phi}, T_{\theta\theta}, T_{\theta\phi}, T_{\phi\phi}` in the
+   spherical basis (see :ref:`gradient-tensor`), computed from five channels.
+
+The flags are combined with ``|``. The outputs are in the order :math:`V, g_r,
+g_\theta, g_\phi`, then the six tensor components, restricted to those requested. Each
+channel adds to the set-up time and grid memory of the fast method, so request only
+what is needed: for example :c:macro:`POTSYNTH_GRAV_GR` alone for radial gravity.
 
 .. c:function:: potsynth_workspace * potsynth_grav_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const double * coef, const double GM, const double a, const double rmin, const double rmax, const int quantities, const potsynth_parameters * params)
 
@@ -329,16 +370,16 @@ and grid memory of the fast method, so request only what is needed: for example
    :param params: parameters, or ``NULL`` for the defaults
    :returns: the workspace, or ``NULL`` on error (reported to the error handler)
 
-   The accuracy :c:member:`potsynth_parameters.eps` applies to each output channel
+   The accuracy :c:member:`potsynth_parameters.eps` applies to each channel
    separately. For a full model, each channel is dominated by its central
    (:math:`l = 0`) term; for :math:`10^{-10}` the potential is accurate to about
    :math:`10^{-3}` m\ :sup:`2`/s\ :sup:`2` (0.1 mm of geoid height) and
    :math:`g_r` to about :math:`2 \times 10^{-5}` mGal, measured with EGM2008 at satellite
    altitudes.
 
-.. c:function:: size_t potsynth_grav_nchan(const int quantities)
+.. c:function:: size_t potsynth_grav_nout(const int quantities)
 
-   The number of output channels for a set of flags, or 0 if the flags are invalid.
+   The number of outputs per point for a set of flags, or 0 if the flags are invalid.
 
 ICGEM files
 -----------
@@ -476,7 +517,9 @@ Generic core
 
 Both methods support all operators.
 
-For example, the gradient tensor :math:`T = \nabla\nabla V` of
+The front-ends provide the gradient tensor directly (:c:macro:`POTSYNTH_MAG_GRADB`,
+:c:macro:`POTSYNTH_GRAV_T`). For other potentials, the gradient tensor
+:math:`T = \nabla\nabla V` of
 :math:`V = \sum (a/r)^{l+1} \bar{P}_l^m [\ldots]` is given by five channels, all with
 ``rpow = 3``:
 
@@ -543,15 +586,17 @@ Evaluation
 
 .. c:function:: int potsynth_eval(const size_t n, const double * r, const double * theta, const double * phi, double * out, potsynth_eval_workspace * ew)
 
-   Evaluates all channels of the model at ``n`` points.
+   Evaluates the model at ``n`` points.
 
    :param n: number of points
    :param r: geocentric radius (the same unit as ``a``), length ``n``
    :param theta: colatitude in radians, :math:`0 \le \theta \le \pi`. Both poles are
       valid.
    :param phi: longitude in radians; any finite value
-   :param out: output array of ``nchan * n`` doubles, channel-major:
-      ``out[c*n + i]``
+   :param out: output array of ``nout * n`` doubles, output-major: ``out[k*n + i]``.
+      ``nout`` is the number of channels, or, for the front-ends, the number of
+      requested outputs (see :c:func:`potsynth_mag_nout`, :c:func:`potsynth_grav_nout`
+      and ``nout`` in :c:struct:`potsynth_info`).
    :param ew: evaluation workspace
    :returns: a status code
 
@@ -566,6 +611,27 @@ Evaluation
 
    The results are bitwise identical for any number of threads and any chunk size.
 
+Tensor frames
+=============
+
+Gradient tensors are returned as six components per point, in the order (11, 12, 13,
+22, 23, 33) of the spherical basis :math:`(\hat{r}, \hat{\theta}, \hat{\phi})`, laid
+out like any other output: ``T[k*n + i]``.
+
+.. c:function:: void potsynth_tensor_rtp2nec(const size_t n, double * T)
+
+   Converts a tensor in place to North-East-Center components (NN, NE, NC, EE, EC, CC),
+   with :math:`\hat{e}_N = -\hat{\theta}`, :math:`\hat{e}_E = \hat{\phi}`,
+   :math:`\hat{e}_C = -\hat{r}`:
+   NN = tt, NE = -tp, NC = rt, EE = pp, EC = -rp, CC = rr.
+
+.. c:function:: void potsynth_tensor_rtp2xyz(const size_t n, const double * theta, const double * phi, double * T)
+
+   Converts a tensor in place to Earth-fixed Cartesian components (xx, xy, xz, yy, yz,
+   zz): :math:`T^{xyz} = R^T T^{r\theta\phi} R`, where :math:`R` is the rotation from
+   Cartesian to spherical components. Unlike the spherical components, these are
+   unique at the poles: they do not depend on the longitude given for a polar point.
+
 Introspection
 =============
 
@@ -574,6 +640,9 @@ Introspection
    The parameters chosen during set-up. Its members are:
 
    - ``lmin``, ``lmax``, ``mmax``, ``nchan``;
+   - ``nout``, the number of outputs per point written by :c:func:`potsynth_eval`. It
+     equals ``nchan``, except for front-end gradient tensors, whose six components are
+     computed from five channels;
    - ``method``, the method actually selected;
    - ``w`` and ``sigma``;
    - ``rho``, the radial rank;

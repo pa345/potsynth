@@ -211,6 +211,41 @@ def test_hessian():
         Tm = np.array([Trr, Trt, Trp, 0.5 * (-Trr + D), Ttp, 0.5 * (-Trr - D)])
         check(rel_err(Tm, T) < tol, f"Hessian channels vs reference, {method} ({rel_err(Tm, T):.2e})")
 
+    # front-ends: GravModel "T" is the reference tensor for GM = a = 1
+    for method in ("direct", "fast"):
+        g = potsynth.GravModel(coef, 1.0, 1.0, lmax=L, quantities="T", rmin=1.0, rmax=1.3,
+                               method=method, eps=1e-12)
+        out = g(r, th, ph)
+        check(g.quantities == ("T_rr", "T_rt", "T_rp", "T_tt", "T_tp", "T_pp"), "GravModel T names")
+        check(rel_err(np.array(out), T) < (1e-13 if method == "direct" else 1e-11),
+              f"GravModel T vs reference, {method} ({rel_err(np.array(out), T):.2e})")
+
+    # MagModel gradB = -T of the same potential (gh = C sqrt(2l+1), GM = a^2)
+    am = 1.3
+    cm = coef[potsynth.nlm(0, 0, 0):]
+    gh = cm * np.concatenate([np.full(2 * l + 1, np.sqrt(2 * l + 1.0)) for l in range(1, L + 1)])
+    mm = potsynth.MagModel(gh, lmax=L, a=am, quantities="B,gradB", method="direct")
+    gm = potsynth.GravModel(cm, am * am, am, lmax=L, lmin=1, quantities="T", method="direct")
+    fm, fg = mm(r * am, th, ph), gm(r * am, th, ph)
+    check(mm.quantities[:3] == ("B_r", "B_theta", "B_phi") and len(mm.quantities) == 9,
+          "MagModel B,gradB names")
+    check(rel_err(np.array(fm[3:]), -np.array(fg)) < 1e-13, "MagModel gradB = -GravModel T")
+    check(mm.info["nout"] == 9 and mm.info["nchan"] == 8, "MagModel B,gradB info nout/nchan")
+    Br, Bt, Bp = potsynth.MagModel(gh, lmax=L, a=am, method="direct")(r * am, th, ph)
+    check(np.array_equal(Br, fm.B_r) and np.array_equal(Bp, fm.B_phi), "MagModel B unchanged with gradB")
+
+    # frame helpers: NEC mapping; Cartesian components at the poles independent of phi
+    nec = potsynth.tensor_rtp_to_nec(1.0, 2.0, 3.0, 4.0, 5.0, 6.0)
+    check([float(v) for v in nec] == [4.0, -5.0, 2.0, 6.0, -3.0, 1.0], "tensor_rtp_to_nec mapping")
+    phis = np.array([0.0, 1.0, 2.5, -2.0])
+    for th0 in (0.0, np.pi):
+        tp = potsynth.GravModel(coef, 1.0, 1.0, lmax=L, quantities="T", method="direct")(1.2, th0, phis)
+        X = np.array(potsynth.tensor_rtp_to_xyz(th0, phis, *tp))
+        check(np.abs(X - X[:, :1]).max() < 1e-14 * np.abs(X).max(), f"Cartesian tensor at theta={th0:g}")
+    M = potsynth.tensor_matrix(*T[:, :5])
+    check(M.shape == (5, 3, 3) and np.allclose(M, np.swapaxes(M, -1, -2)), "tensor_matrix shape, symmetry")
+    check(np.abs(np.trace(M, axis1=-2, axis2=-1)).max() < 1e-13 * np.abs(M).max(), "reference tensor traceless")
+
     print("  gradient tensor checks done")
 
 

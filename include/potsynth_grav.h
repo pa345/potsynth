@@ -6,10 +6,11 @@
  * V(r,theta,phi) = GM/r \sum_{l=lmin}^{lmax} \sum_{m=0}^{min(l,mmax)} (a/r)^l
  *                    [ C_lm cos(m phi) + S_lm sin(m phi) ] Pbar_l^m(cos theta)
  *
- * with 4-pi fully normalized Pbar_l^m, and gravitational acceleration
- * g = grad V. This is the gravitational field of the model coefficients only:
- * no centrifugal term and no normal field are included (subtract the normal
- * field zonals from the coefficients for disturbing quantities).
+ * with 4-pi fully normalized Pbar_l^m, gravitational acceleration g = grad V
+ * and gravity gradient tensor T = grad grad V. This is the gravitational field
+ * of the model coefficients only: no centrifugal term and no normal field are
+ * included (subtract the normal field zonals from the coefficients for
+ * disturbing quantities).
  *
  * Copyright (C) 2026 Patrick Alken and Johnathan Burchill, BSD 3-Clause License
  */
@@ -23,10 +24,13 @@
 extern "C" {
 #endif
 
-/* quantities computed (bit flags); output channels are ordered V, g_r, g_theta, g_phi */
+/* quantities computed (bit flags); outputs are ordered V, g_r, g_theta, g_phi, then the
+ * gradient tensor (rr, rt, rp, tt, tp, pp) */
 #define POTSYNTH_GRAV_V              0x1 /* potential V (m^2/s^2) */
 #define POTSYNTH_GRAV_GR             0x2 /* radial acceleration g_r = dV/dr (m/s^2) */
 #define POTSYNTH_GRAV_G              0x4 /* acceleration (g_r, g_theta, g_phi) = grad V (m/s^2); includes GR */
+#define POTSYNTH_GRAV_T              0x8 /* gravity gradient tensor T = grad grad V (1/s^2; 1 E = 1e-9/s^2):
+                                            T_rr, T_rt, T_rp, T_tt, T_tp, T_pp */
 
 /* static model read from an ICGEM .gfc file */
 typedef struct
@@ -51,7 +55,7 @@ POTSYNTH_API potsynth_workspace * potsynth_grav_alloc(const size_t lmin, const s
                                                       const double * coef, const double GM, const double a,
                                                       const double rmin, const double rmax,
                                                       const int quantities, const potsynth_parameters * params);
-POTSYNTH_API size_t potsynth_grav_nchan(const int quantities);
+POTSYNTH_API size_t potsynth_grav_nout(const int quantities);
 
 /* gfc.c */
 POTSYNTH_API potsynth_gfc * potsynth_gfc_read(const char * filename, const size_t lmax);

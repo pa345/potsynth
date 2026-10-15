@@ -1,6 +1,8 @@
 """
-Magnetic front-end: B = -grad V for Schmidt semi-normalised Gauss coefficients.
+Magnetic front-end: B = -grad V and its gradient tensor grad B for Schmidt
+semi-normalised Gauss coefficients.
 """
+import collections
 import ctypes
 import os
 from dataclasses import dataclass
@@ -10,6 +12,26 @@ import numpy as np
 from . import _lib
 from ._lib import lib
 from .core import _Evaluator, _params, _raise, coef_vector, nlm
+
+MAG_B = 0x1
+MAG_GRADB = 0x2
+
+_MAG_QUANTITIES = {"B": MAG_B, "gradB": MAG_GRADB}
+
+
+def _mag_flags(quantities):
+    if isinstance(quantities, str):
+        quantities = [q.strip() for q in quantities.split(",")]
+    flags = 0
+    for q in quantities:
+        if q not in _MAG_QUANTITIES:
+            raise ValueError(f"unknown quantity {q!r}; use 'B' or 'gradB'")
+        flags |= _MAG_QUANTITIES[q]
+    if flags == 0:
+        raise ValueError("no quantities requested")
+    names = (["B_r", "B_theta", "B_phi"] if flags & MAG_B else []) + \
+            (["dB_rr", "dB_rt", "dB_rp", "dB_tt", "dB_tp", "dB_pp"] if flags & MAG_GRADB else [])
+    return flags, names
 
 
 @dataclass
@@ -54,17 +76,22 @@ class MagModel(_Evaluator):
     lmin : minimum degree (default 1)
     mmax : maximum order (default lmax)
     a : reference radius in km (default 6371.2)
+    quantities : "B" (field, nT) and/or "gradB" (gradient tensor grad B = -grad grad V,
+                 nT/km), as a list or a comma-separated string (default "B")
     rmin, rmax : radial range in km of the evaluation points (required by the fast
                  method; default: none, i.e. direct method only)
     eps, method, npts_hint, nthreads, sigma, w, rank_tol, chunk : as for potsynth.Model
 
-    Calling the model with (r [km], theta [rad, colatitude], phi [rad]) returns
-    (B_r, B_theta, B_phi) in nT, each with the broadcast shape of the inputs.
+    Calling the model with (r [km], theta [rad, colatitude], phi [rad]) returns a named
+    tuple with the requested quantities, in the order B_r, B_theta, B_phi (nT), then
+    dB_rr, dB_rt, dB_rp, dB_tt, dB_tp, dB_pp (nT/km), each with the broadcast shape of
+    the inputs.
     """
 
     def __init__(self, gh, lmax=None, lmin=1, mmax=None, a=6371.2, rmin=0.0, rmax=0.0,
                  eps=1e-10, method="auto", nthreads=0, sigma=0.0, w=0, rank_tol=0.0, chunk=0,
-                 npts_hint=0):
+                 npts_hint=0, quantities="B"):
+        flags, names = _mag_flags(quantities)
         if isinstance(gh, tuple):
             g, h = gh
             lmax = np.asarray(g).shape[0] - 1 if lmax is None else lmax
@@ -86,10 +113,12 @@ class MagModel(_Evaluator):
         p = _params(eps, method, nthreads, sigma, w, rank_tol, npts_hint)
         _lib.clear_error()
         ptr = lib.potsynth_mag_alloc(lmin, lmax, mmax, gh.ctypes.data_as(_lib.c_double_p), a,
-                                     rmin, rmax, ctypes.byref(p))
+                                     rmin, rmax, flags, ctypes.byref(p))
         if not ptr:
             _raise(_lib.POTSYNTH_EINVAL, "potsynth_mag_alloc")
-        super().__init__(ptr, 3, chunk)
+        super().__init__(ptr, len(names), chunk)
+        self.quantities = tuple(names)
+        self._result = collections.namedtuple("MagField", names)
 
     @classmethod
     def from_shc(cls, filename, a=6371.2, rmin=0.0, rmax=0.0, **kwargs):
@@ -100,8 +129,7 @@ class MagModel(_Evaluator):
                    **kwargs)
 
     def __call__(self, r, theta, phi):
-        B = self._evaluate(r, theta, phi)
-        return B[0], B[1], B[2]
+        return self._result(*self._evaluate(r, theta, phi))
 
 
 def rtp_to_nec(Br, Btheta, Bphi):

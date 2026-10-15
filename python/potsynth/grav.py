@@ -1,6 +1,7 @@
 """
-Gravity front-end: potential V and gravitational acceleration g = grad V for
-4-pi fully normalized coefficients (ICGEM .gfc models such as EGM2008).
+Gravity front-end: potential V, gravitational acceleration g = grad V and gravity
+gradient tensor T = grad grad V for 4-pi fully normalized coefficients (ICGEM .gfc
+models such as EGM2008).
 """
 import collections
 import ctypes
@@ -16,8 +17,9 @@ from .core import _Evaluator, _params, _raise, coef_vector, nlm
 GRAV_V = 0x1
 GRAV_GR = 0x2
 GRAV_G = 0x4
+GRAV_T = 0x8
 
-_QUANTITIES = {"V": GRAV_V, "g_r": GRAV_GR, "g": GRAV_G}
+_QUANTITIES = {"V": GRAV_V, "g_r": GRAV_GR, "g": GRAV_G, "T": GRAV_T}
 
 
 @dataclass
@@ -64,18 +66,20 @@ def _flags(quantities):
     flags = 0
     for q in quantities:
         if q not in _QUANTITIES:
-            raise ValueError(f"unknown quantity {q!r}; use 'V', 'g_r' or 'g'")
+            raise ValueError(f"unknown quantity {q!r}; use 'V', 'g_r', 'g' or 'T'")
         flags |= _QUANTITIES[q]
     if flags == 0:
         raise ValueError("no quantities requested")
     names = (["V"] if flags & GRAV_V else []) + \
-            (["g_r", "g_theta", "g_phi"] if flags & GRAV_G else ["g_r"] if flags & GRAV_GR else [])
+            (["g_r", "g_theta", "g_phi"] if flags & GRAV_G else ["g_r"] if flags & GRAV_GR else []) + \
+            (["T_rr", "T_rt", "T_rp", "T_tt", "T_tp", "T_pp"] if flags & GRAV_T else [])
     return flags, names
 
 
 class GravModel(_Evaluator):
-    """Gravity field model (EGM2008, EIGEN, XGM, GOCO...): gravitational potential and
-    acceleration of the model coefficients (no centrifugal term, no normal field).
+    """Gravity field model (EGM2008, EIGEN, XGM, GOCO...): gravitational potential,
+    acceleration and gradient tensor of the model coefficients (no centrifugal term,
+    no normal field).
 
     Parameters
     ----------
@@ -86,16 +90,17 @@ class GravModel(_Evaluator):
     lmax : maximum degree (default: from coef)
     lmin : minimum degree (default 0)
     mmax : maximum order (default lmax)
-    quantities : any of "V" (potential, m^2/s^2), "g_r" (radial acceleration, m/s^2) and
-                 "g" (acceleration g_r, g_theta, g_phi, m/s^2), as a list or a
+    quantities : any of "V" (potential, m^2/s^2), "g_r" (radial acceleration, m/s^2),
+                 "g" (acceleration g_r, g_theta, g_phi, m/s^2) and "T" (gradient tensor
+                 T_rr, T_rt, T_rp, T_tt, T_tp, T_pp, 1/s^2; 1 E = 1e-9/s^2), as a list or a
                  comma-separated string (default "V,g")
     rmin, rmax : radial range in m of the evaluation points (required by the fast
                  method; default: none, i.e. direct method only)
     eps, method, npts_hint, nthreads, sigma, w, rank_tol, chunk : as for potsynth.Model
 
     Calling the model with (r [m], theta [rad, colatitude], phi [rad]) returns a named
-    tuple with the requested quantities in the order V, g_r, g_theta, g_phi, each with
-    the broadcast shape of the inputs. g = grad V: g_r is negative (towards the center)
+    tuple with the requested quantities in the order V, g_r, g_theta, g_phi, T_rr, ...,
+    T_pp, each with the broadcast shape of the inputs. g = grad V: g_r is negative (towards the center)
     and g_theta is positive southwards.
     """
 

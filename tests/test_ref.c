@@ -96,7 +96,7 @@ test_ref_method(const char * name, const int method, const double eps, const dou
   params.method = method;
   params.eps = eps;
 
-  w = potsynth_mag_alloc(1, data->lmax, data->lmax, data->gh, data->a, data->rmin, data->rmax, &params);
+  w = potsynth_mag_alloc(1, data->lmax, data->lmax, data->gh, data->a, data->rmin, data->rmax, POTSYNTH_MAG_B, &params);
   ps_test(w == NULL, "ref: %s method=%d eps=%g allocation", name, method, eps);
   if (w == NULL)
     {

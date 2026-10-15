@@ -97,13 +97,13 @@ test_eval_model(const char * desc, const size_t lmin, const size_t lmax, const s
   if (chan)
     wf = potsynth_alloc(lmin, lmax, mmax, coef, a, rmin, rmax, nchan, chan, &params);
   else
-    wf = potsynth_mag_alloc(lmin, lmax, mmax, coef, a, rmin, rmax, &params);
+    wf = potsynth_mag_alloc(lmin, lmax, mmax, coef, a, rmin, rmax, POTSYNTH_MAG_B, &params);
 
   params.method = POTSYNTH_METHOD_DIRECT;
   if (chan)
     wd = potsynth_alloc(lmin, lmax, mmax, coef, a, rmin, rmax, nchan, chan, &params);
   else
-    wd = potsynth_mag_alloc(lmin, lmax, mmax, coef, a, rmin, rmax, &params);
+    wd = potsynth_mag_alloc(lmin, lmax, mmax, coef, a, rmin, rmax, POTSYNTH_MAG_B, &params);
 
   ps_test(wf == NULL || wd == NULL, "eval: %s allocation", desc);
 

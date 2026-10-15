@@ -399,7 +399,7 @@ test_grav_model(void)
         potsynth_eval_workspace * ewq = potsynth_eval_alloc(0, wq);
         double emax = 0.0;
 
-        ps_test_int((int) potsynth_grav_nchan(qs[k]), (int) nq[k], "grav: nchan for quantities 0x%x", qs[k]);
+        ps_test_int((int) potsynth_grav_nout(qs[k]), (int) nq[k], "grav: nout for quantities 0x%x", qs[k]);
         potsynth_eval(n, r, theta, phi, F, ewq);
 
         for (c = 0; c < nq[k]; ++c)
@@ -417,7 +417,7 @@ test_grav_model(void)
     test_last_error();
     ps_test(potsynth_grav_alloc(0, L, L, coef, GM, a, rmin, rmax, 0, &params) != NULL,
             "grav: quantities = 0 rejected");
-    ps_test(potsynth_grav_alloc(0, L, L, coef, GM, a, rmin, rmax, 0x8, &params) != NULL,
+    ps_test(potsynth_grav_alloc(0, L, L, coef, GM, a, rmin, rmax, 0x10, &params) != NULL,
             "grav: unknown quantity flag rejected");
     ps_test(potsynth_grav_alloc(0, L, L, coef, -GM, a, rmin, rmax, POTSYNTH_GRAV_V, &params) != NULL,
             "grav: GM < 0 rejected");

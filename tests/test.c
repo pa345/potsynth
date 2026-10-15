@@ -17,6 +17,7 @@
  * test_eval.c    - fast method against direct method
  * test_grav.c    - gfc reader and gravity front-end
  * test_hess.c    - gradient tensor (second-derivative operators)
+ * test_tensor.c  - gradient tensors of the front-ends, frame conversions
  * test_api.c     - API contract (NaN inputs, domain errors, reproducibility)
  * test_threads.c - one workspace evaluated concurrently from several threads
  *
@@ -62,6 +63,7 @@
 #include "test_eval.c"
 #include "test_grav.c"
 #include "test_hess.c"
+#include "test_tensor.c"
 #include "test_api.c"
 #include "test_threads.c"
 
@@ -83,6 +85,7 @@ main(void)
   test_eval();
   test_grav();
   test_hess();
+  test_tensor();
   test_api();
   test_threads();
 

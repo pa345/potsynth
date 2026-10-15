@@ -207,20 +207,21 @@ potsynth_shc_free(potsynth_shc * shc)
 /*
 potsynth_mag_alloc_shc()
   Read a static model from a Swarm SHC file and allocate the magnetic field
-model (channels B_r, B_theta, B_phi)
+model (quantities as for potsynth_mag_alloc())
 
-Inputs: filename - SHC file
-        a        - reference radius (km), usually 6371.2
-        rmin     - minimum radius of evaluation points (km), fast method
-        rmax     - maximum radius of evaluation points (km), fast method
-        params   - parameters, or NULL for defaults
+Inputs: filename   - SHC file
+        a          - reference radius (km), usually 6371.2
+        rmin       - minimum radius of evaluation points (km), fast method
+        rmax       - maximum radius of evaluation points (km), fast method
+        quantities - POTSYNTH_MAG_xxx flags (B, GRADB)
+        params     - parameters, or NULL for defaults
 
 Return: pointer to workspace, or NULL on error
 */
 
 potsynth_workspace *
 potsynth_mag_alloc_shc(const char * filename, const double a, const double rmin, const double rmax,
-                       const potsynth_parameters * params)
+                       const int quantities, const potsynth_parameters * params)
 {
   potsynth_shc * shc = potsynth_shc_read(filename);
   potsynth_workspace * w;
@@ -228,7 +229,7 @@ potsynth_mag_alloc_shc(const char * filename, const double a, const double rmin,
   if (shc == NULL)
     return NULL; /* reported by potsynth_shc_read() */
 
-  w = potsynth_mag_alloc(shc->lmin, shc->lmax, shc->mmax, shc->gh, a, rmin, rmax, params);
+  w = potsynth_mag_alloc(shc->lmin, shc->lmax, shc->mmax, shc->gh, a, rmin, rmax, quantities, params);
 
   potsynth_shc_free(shc);
 

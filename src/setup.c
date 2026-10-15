@@ -153,6 +153,7 @@ potsynth_alloc(const size_t lmin, const size_t lmax, const size_t mmax, const do
   w->rmin = rmin;
   w->rmax = rmax;
   w->nchan = nchan;
+  w->nout = nchan;
   w->params = p;
   w->nthreads = potsynth_max_threads(p.nthreads);
 
@@ -269,6 +270,9 @@ potsynth_free(potsynth_workspace * w)
 
   potsynth_direct_free(w);
 
+  if (w->omap)
+    free(w->omap);
+
   free(w);
 }
 
@@ -292,6 +296,7 @@ potsynth_get_info(potsynth_info * info, const potsynth_workspace * w)
   info->lmax = w->lmax;
   info->mmax = w->mmax;
   info->nchan = w->nchan;
+  info->nout = w->nout;
   info->method = w->method;
 
   if (w->method == POTSYNTH_METHOD_FAST)
@@ -362,4 +367,111 @@ auto_method(const size_t lmax, const size_t nchan, const potsynth_parameters * p
 
       return (t_setup + n * t_fast < n * t_direct) ? POTSYNTH_METHOD_FAST : POTSYNTH_METHOD_DIRECT;
     }
+}
+
+/*
+potsynth_set_outputs()
+  Define the outputs of a model as linear combinations of its channels; used
+by the front-ends (e.g. 6 tensor components from 5 channels)
+
+Inputs: w    - workspace
+        nout - number of outputs per point
+        map  - output k = sum_c map[k*nchan + c] channel c, length nout*nchan; copied
+
+Return: success or error
+
+Notes:
+1) potsynth_eval() then writes nout outputs per point, out[k*n + i]
+*/
+
+int
+potsynth_set_outputs(potsynth_workspace * w, const size_t nout, const double * map)
+{
+  if (nout < w->nchan || w->nchan > POTSYNTH_OMAP_MAX || nout > POTSYNTH_OMAP_MAX)
+    {
+      POTSYNTH_ERROR ("invalid output map", POTSYNTH_EINVAL);
+    }
+
+  w->omap = malloc(nout * w->nchan * sizeof(double));
+  if (w->omap == NULL)
+    {
+      POTSYNTH_ERROR ("unable to allocate output map", POTSYNTH_ENOMEM);
+    }
+
+  memcpy(w->omap, map, nout * w->nchan * sizeof(double));
+  w->nout = nout;
+
+  return POTSYNTH_SUCCESS;
+}
+
+/*
+potsynth_tensor_channels()
+  Define the five channels of the gradient tensor T = grad grad V of
+V = sum (a/r)^(l+1) Pbar_l^m [C cos(m phi) + S sin(m phi)], scaled by f:
+
+T_rr = f (l+1)(l+2) u^(l+3) P,      T_rt = -f (l+2) u^(l+3) dP/dtheta,
+T_rp = -f (l+2) u^(l+3) P/sin d/dphi,
+D    = T_tt - T_pp = f u^(l+3) S2A,  T_tp = f u^(l+3) S2B d/dphi
+
+Inputs: lmax - maximum SH degree
+        f    - scale factor (1/a^2 for the unit potential above)
+        chan - (output) 5 channels
+        rfac - (output) per-degree factors referenced by chan, length 5*(lmax+1)
+
+Notes:
+1) See the documentation, "The gradient tensor"; potsynth_tensor_map()
+gives the six components from the five channels
+*/
+
+void
+potsynth_tensor_channels(const size_t lmax, const double f, potsynth_channel * chan, double * rfac)
+{
+  const size_t L1 = lmax + 1;
+  const int ops[5] = { POTSYNTH_THETA_P, POTSYNTH_THETA_DP, POTSYNTH_THETA_PSIN,
+                       POTSYNTH_THETA_S2A, POTSYNTH_THETA_S2B };
+  const int dphi[5] = { 0, 0, 1, 0, 1 };
+  size_t c, l;
+
+  for (l = 0; l <= lmax; ++l)
+    {
+      const double dl = (double) l;
+
+      rfac[0 * L1 + l] = f * (dl + 1.0) * (dl + 2.0);
+      rfac[1 * L1 + l] = -f * (dl + 2.0);
+      rfac[2 * L1 + l] = -f * (dl + 2.0);
+      rfac[3 * L1 + l] = f;
+      rfac[4 * L1 + l] = f;
+    }
+
+  for (c = 0; c < 5; ++c)
+    {
+      chan[c].rpow = 3;
+      chan[c].rfac = rfac + c * L1;
+      chan[c].theta = ops[c];
+      chan[c].dphi = dphi[c];
+    }
+}
+
+/*
+potsynth_tensor_map()
+  Rows of an output map giving the six tensor components
+(rr, rt, rp, tt, tp, pp) from the five channels of potsynth_tensor_channels():
+T_tt = (-T_rr + D)/2, T_pp = (-T_rr - D)/2 (zero trace)
+
+Inputs: nchan - number of channels of the model
+        c0    - index of the first tensor channel
+        map   - (output) 6 rows of length nchan, zeroed by the caller
+*/
+
+void
+potsynth_tensor_map(const size_t nchan, const size_t c0, double * map)
+{
+  map[0 * nchan + c0] = 1.0;
+  map[1 * nchan + c0 + 1] = 1.0;
+  map[2 * nchan + c0 + 2] = 1.0;
+  map[3 * nchan + c0] = -0.5;
+  map[3 * nchan + c0 + 3] = 0.5;
+  map[4 * nchan + c0 + 4] = 1.0;
+  map[5 * nchan + c0] = -0.5;
+  map[5 * nchan + c0 + 3] = -0.5;
 }
