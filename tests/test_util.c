@@ -84,8 +84,13 @@ test_pow_scaled(void)
             }
 
           {
-            const long double ref = (long double) k * log2l(fabsl((long double) s));
-            const long double got = log2l(fabsl((long double) mant)) + expo;
+            /* s = ms 2^es, ms in [0.5,1): with the exact integer part
+             * expo - k es removed, only terms of size <= k remain (long double
+             * may have no extra precision, e.g. MSVC and Apple arm64) */
+            int es;
+            const double ms = frexp(fabs(s), &es);
+            const long double ref = (long double) k * log2l((long double) ms);
+            const long double got = log2l(fabsl((long double) mant)) + (double) (expo - (long) k * es);
             const int negative = (s < 0.0 && (k & 1));
             const double err = (double) (fabsl(got - ref) * M_LN2) / ((k + 1.0) * DBL_EPSILON);
 
