@@ -53,8 +53,9 @@ test-requires = ["numpy"]
 test-command = "python {project}/tests/test_python.py"
 test-environment = { POTSYNTH_TEST_INSTALLED = "1" }
 
+# native architecture of each Linux runner (x86_64 and aarch64)
 [tool.cibuildwheel.linux]
-archs = ["x86_64"]
+archs = ["native"]
 
 # Apple silicon runner: native arm64 wheel, and an x86_64 wheel cross-compiled
 # (tested under Rosetta when available). aligned_alloc needs macOS 10.15.
