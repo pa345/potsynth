@@ -62,6 +62,13 @@ class Gfc_t(ctypes.Structure):
                 ("coef", c_double_p)]
 
 
+class Ellipsoid_t(ctypes.Structure):
+    _fields_ = [("a", ctypes.c_double),
+                ("f", ctypes.c_double),
+                ("GM", ctypes.c_double),
+                ("omega", ctypes.c_double)]
+
+
 class Info_t(ctypes.Structure):
     _fields_ = [("lmin", ctypes.c_size_t),
                 ("lmax", ctypes.c_size_t),
@@ -143,6 +150,20 @@ lib.potsynth_gfc_read.argtypes = [ctypes.c_char_p, ctypes.c_size_t]
 
 lib.potsynth_gfc_free.restype = None
 lib.potsynth_gfc_free.argtypes = [ctypes.POINTER(Gfc_t)]
+
+lib.potsynth_geodetic2geocentric.restype = ctypes.c_int
+lib.potsynth_geodetic2geocentric.argtypes = [ctypes.c_size_t, c_double_p, c_double_p,
+                                             ctypes.POINTER(Ellipsoid_t), c_double_p, c_double_p]
+
+lib.potsynth_normal_zonals.restype = ctypes.c_int
+lib.potsynth_normal_zonals.argtypes = [ctypes.POINTER(Ellipsoid_t), ctypes.c_size_t, c_double_p]
+
+lib.potsynth_grav_subtract_normal.restype = ctypes.c_int
+lib.potsynth_grav_subtract_normal.argtypes = [ctypes.c_size_t, ctypes.c_size_t, ctypes.c_size_t, c_double_p,
+                                              ctypes.c_double, ctypes.c_double, ctypes.POINTER(Ellipsoid_t)]
+
+lib.potsynth_normal_gravity.restype = ctypes.c_int
+lib.potsynth_normal_gravity.argtypes = [ctypes.c_size_t, c_double_p, ctypes.POINTER(Ellipsoid_t), c_double_p]
 
 lib.potsynth_free.restype = None
 lib.potsynth_free.argtypes = [ctypes.c_void_p]

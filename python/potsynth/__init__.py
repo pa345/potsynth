@@ -16,10 +16,13 @@ from .core import Channel, DomainError, Model, PotsynthError, coef_vector, idx, 
 from .mag import MagModel, ShcModel, read_shc, rtp_to_nec
 from .grav import GfcModel, GravModel, read_gfc
 from .tensor import tensor_matrix, tensor_rtp_to_nec, tensor_rtp_to_xyz
+from .geodesy import (GRS80, WGS84, Ellipsoid, geodetic_to_geocentric, normal_gravity,
+                      normal_zonals, subtract_normal_field)
 
 __version__ = "0.1.0"
 
 __all__ = ["MagModel", "GravModel", "Model", "Channel", "ShcModel", "read_shc", "rtp_to_nec",
            "GfcModel", "read_gfc", "tensor_matrix", "tensor_rtp_to_nec", "tensor_rtp_to_xyz",
-           "coef_vector",
+           "Ellipsoid", "WGS84", "GRS80", "geodetic_to_geocentric", "normal_zonals",
+           "subtract_normal_field", "normal_gravity", "coef_vector",
            "idx", "nlm", "PotsynthError", "DomainError"]

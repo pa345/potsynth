@@ -19,6 +19,7 @@ from about :math:`10^{-4}` down to the rounding error of double precision.
    algorithm.rst
    c_api.rst
    python_api.rst
+   gravity.rst
    examples.rst
 
 Indices and tables

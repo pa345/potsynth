@@ -46,6 +46,18 @@ typedef struct
                            potsynth_idx(l,m,lmin,mmax); absent coefficients are 0 */
 } potsynth_gfc;
 
+/* reference ellipsoid, by its four defining parameters */
+typedef struct
+{
+  double a;             /* semi-major axis (m) */
+  double f;             /* flattening */
+  double GM;            /* geocentric gravitational constant (m^3/s^2) */
+  double omega;         /* angular velocity (rad/s) */
+} potsynth_ellipsoid;
+
+POTSYNTH_API extern const potsynth_ellipsoid potsynth_wgs84; /* WGS84: a = 6378137, 1/f = 298.257223563 */
+POTSYNTH_API extern const potsynth_ellipsoid potsynth_grs80; /* GRS80: a = 6378137, 1/f = 298.257222101 */
+
 /*
  * Prototypes
  */
@@ -56,6 +68,16 @@ POTSYNTH_API potsynth_workspace * potsynth_grav_alloc(const size_t lmin, const s
                                                       const double rmin, const double rmax,
                                                       const int quantities, const potsynth_parameters * params);
 POTSYNTH_API size_t potsynth_grav_nout(const int quantities);
+
+/* geodesy.c */
+POTSYNTH_API int potsynth_geodetic2geocentric(const size_t n, const double * lat, const double * h,
+                                              const potsynth_ellipsoid * ell, double * r, double * theta);
+POTSYNTH_API int potsynth_normal_zonals(const potsynth_ellipsoid * ell, const size_t lmax, double * C);
+POTSYNTH_API int potsynth_grav_subtract_normal(const size_t lmin, const size_t lmax, const size_t mmax,
+                                               double * coef, const double GM, const double a,
+                                               const potsynth_ellipsoid * ell);
+POTSYNTH_API int potsynth_normal_gravity(const size_t n, const double * lat, const potsynth_ellipsoid * ell,
+                                         double * gamma);
 
 /* gfc.c */
 POTSYNTH_API potsynth_gfc * potsynth_gfc_read(const char * filename, const size_t lmax);

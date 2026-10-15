@@ -54,8 +54,10 @@ Documentation: `doc/` (Sphinx). Build it with `make -C doc html`, then open
     Gauss coefficients
   - `potsynth_grav`: potential V, acceleration g = grad V and gravity gradient tensor
     T = grad grad V from fully normalized
-    coefficients, with an ICGEM `.gfc` reader. Only the synthesis is computed; normal
-    field, gravity anomalies and geoid heights are left to the user.
+    coefficients, with an ICGEM `.gfc` reader. Small helpers (WGS84/GRS80, geodetic
+    coordinates, normal field, normal gravity) and the "Gravity recipes" chapter of the
+    documentation show how to get disturbances, anomalies, height anomalies,
+    deflections and geoid heights from the synthesis.
 - The model workspace is read-only after set-up and can be shared between threads.
   Evaluation does not allocate memory.
 - Coefficients are passed degree by degree, with orders -M..M within each degree (see

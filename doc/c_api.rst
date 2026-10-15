@@ -463,6 +463,69 @@ time-variable terms (``gfct``, ``trnd``, ``dot``, ``acos``, ``asin``) give
       ew = potsynth_eval_alloc(0, w);
       status = potsynth_eval(n, r, theta, phi, g_r, ew);   /* r in m, g_r in m/s^2 */
 
+.. _c-geodesy:
+
+Geodetic helpers
+----------------
+
+Small helpers for the recipes of :ref:`gravity-recipes`. The constants derived from an
+ellipsoid (:math:`J_2`, normal gravity at the equator and the poles) are computed from
+its four defining parameters with the closed formulas of Moritz (2000); they reproduce
+the published WGS84 and GRS80 values.
+
+.. c:struct:: potsynth_ellipsoid
+
+   .. c:member:: double a
+
+      semi-major axis (m)
+
+   .. c:member:: double f
+
+      flattening
+
+   .. c:member:: double GM
+
+      geocentric gravitational constant (m\ :sup:`3`/s\ :sup:`2`)
+
+   .. c:member:: double omega
+
+      angular velocity (rad/s)
+
+.. c:var:: const potsynth_ellipsoid potsynth_wgs84
+
+   WGS84: :math:`a = 6378137` m, :math:`1/f = 298.257223563`,
+   :math:`GM = 3.986004418 \times 10^{14}`, :math:`\omega = 7.292115 \times 10^{-5}`.
+
+.. c:var:: const potsynth_ellipsoid potsynth_grs80
+
+   GRS80: :math:`a = 6378137` m, :math:`1/f = 298.257222101`,
+   :math:`GM = 3.986005 \times 10^{14}`, :math:`\omega = 7.292115 \times 10^{-5}`.
+
+.. c:function:: int potsynth_geodetic2geocentric(const size_t n, const double * lat, const double * h, const potsynth_ellipsoid * ell, double * r, double * theta)
+
+   Converts geodetic latitude ``lat`` (radians) and ellipsoidal height ``h`` (m) to
+   geocentric radius ``r`` (m) and colatitude ``theta`` (radians). The longitude is the
+   same in both systems. The outputs may be the input arrays.
+
+.. c:function:: int potsynth_normal_zonals(const potsynth_ellipsoid * ell, const size_t lmax, double * C)
+
+   Fills ``C[l]``, :math:`l = 0 \ldots l_{max}`, with the 4-:math:`\pi` normalized zonal
+   coefficients of the ellipsoid's normal gravitational potential, in its own scaling:
+   :math:`C_0 = 1`, :math:`C_{2n} = -J_{2n}/\sqrt{4n+1}` for :math:`2n \le 20`, and 0
+   otherwise.
+
+.. c:function:: int potsynth_grav_subtract_normal(const size_t lmin, const size_t lmax, const size_t mmax, double * coef, const double GM, const double a, const potsynth_ellipsoid * ell)
+
+   Subtracts the normal gravitational potential from a model in place, giving the
+   coefficients of the disturbing potential :math:`T = V - U`. The normal zonals are
+   rescaled to the model, :math:`C_l\, (GM_e/GM)(a_e/a)^l`. Degree 0 is included when
+   :math:`l_{min} = 0`, so :math:`T` contains the term :math:`(GM - GM_e)/r`.
+
+.. c:function:: int potsynth_normal_gravity(const size_t n, const double * lat, const potsynth_ellipsoid * ell, double * gamma)
+
+   Normal gravity (m/s\ :sup:`2`) on the surface of the ellipsoid at geodetic latitude
+   ``lat``, by Somigliana's formula.
+
 Generic core
 ============
 

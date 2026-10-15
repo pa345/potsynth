@@ -196,6 +196,37 @@ Gravity models
    ``coef[potsynth.idx(2, 0, 0, lmax)] -= C20_normal``. The normal coefficients must
    first be rescaled to the model's ``GM`` and ``a``.
 
+Geodetic helpers
+================
+
+For the recipes of :ref:`gravity-recipes` (see also :ref:`c-geodesy`).
+
+.. py:class:: Ellipsoid(a, f, GM, omega)
+
+   A reference ellipsoid by its defining parameters: semi-major axis (m), flattening,
+   geocentric gravitational constant (m\ :sup:`3`/s\ :sup:`2`) and angular velocity
+   (rad/s). ``potsynth.WGS84`` and ``potsynth.GRS80`` are predefined.
+
+.. py:function:: geodetic_to_geocentric(lat, h, ellipsoid=WGS84)
+
+   Converts geodetic latitude (radians) and ellipsoidal height (m) to ``(r, theta)``:
+   geocentric radius (m) and colatitude (radians).
+
+.. py:function:: normal_zonals(lmax, ellipsoid=WGS84)
+
+   The zonal coefficients ``C[l]`` of the normal gravitational potential, in the
+   ellipsoid's own scaling.
+
+.. py:function:: subtract_normal_field(coef, GM, a, lmin=0, lmax=None, mmax=None, ellipsoid=WGS84)
+
+   Returns a copy of the coefficient vector with the normal field subtracted: the
+   coefficients of the disturbing potential :math:`T`.
+
+.. py:function:: normal_gravity(lat, ellipsoid=WGS84)
+
+   Normal gravity (m/s\ :sup:`2`) on the ellipsoid at geodetic latitude ``lat``
+   (radians).
+
 Gradient tensors
 ================
 

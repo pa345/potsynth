@@ -21,6 +21,7 @@ set(POTSYNTH_SOURCES
   ${PROJECT_SOURCE_DIR}/src/eval.c
   ${PROJECT_SOURCE_DIR}/src/fast.c
   ${PROJECT_SOURCE_DIR}/src/frame.c
+  ${PROJECT_SOURCE_DIR}/src/geodesy.c
   ${PROJECT_SOURCE_DIR}/src/gfc.c
   ${PROJECT_SOURCE_DIR}/src/grav.c
   ${PROJECT_SOURCE_DIR}/src/mag.c

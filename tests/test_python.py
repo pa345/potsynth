@@ -249,10 +249,49 @@ def test_hessian():
     print("  gradient tensor checks done")
 
 
+def test_geodesy():
+    # helpers: published WGS84 values, copy semantics, shapes
+    w = potsynth.WGS84
+    check(w.a == 6378137.0 and abs(1 / w.f - 298.257223563) < 1e-9, "WGS84 constants")
+    C = potsynth.normal_zonals(10)
+    check(abs(C[2] / -0.484166774985e-3 - 1) < 1e-12 and abs(C[4] / 0.790303733511e-6 - 1) < 1e-11,
+          "WGS84 normal zonals")
+    g = potsynth.normal_gravity(np.radians([0.0, 90.0]))
+    check(abs(g[0] - 9.7803253359) < 1e-10 and abs(g[1] - 9.8321849378) < 1e-10, "WGS84 normal gravity")
+    r, th = potsynth.geodetic_to_geocentric(np.zeros((2, 3)), 100.0)
+    check(r.shape == (2, 3) and np.allclose(r, w.a + 100.0) and np.allclose(th, np.pi / 2),
+          "geodetic_to_geocentric shape and equator")
+    c = np.zeros(potsynth.nlm(0, 4, 4))
+    c[0] = 1.0
+    cT = potsynth.subtract_normal_field(c, w.GM, w.a)
+    check(c[0] == 1.0 and abs(cT[0]) < 1e-16 and abs(cT[potsynth.idx(2, 0, 0, 4)] - (-C[2])) < 1e-18,
+          "subtract_normal_field returns a modified copy")
+
+    # recipe signs against the definitions (finite differences of T in latitude/longitude)
+    rng = np.random.default_rng(5)
+    L = 30
+    coef = rng.normal(0, 1e-6, potsynth.nlm(0, L, L)) / 10
+    m = potsynth.GravModel(coef, w.GM, w.a, quantities="V,g", method="direct")
+    lat, lon, rr = 0.6, 1.1, 6.4e6
+    th, h = np.pi / 2 - lat, 1e-6
+    T, gr, gt, gp = (float(v) for v in m(rr, th, lon))
+    dTdlat = (m(rr, th - h, lon).V - m(rr, th + h, lon).V) / (2 * h)
+    dTdlon = (m(rr, th, lon + h).V - m(rr, th, lon - h).V) / (2 * h)
+    gam = 9.8
+    xi_def, eta_def = -dTdlat / (rr * gam), -dTdlon / (rr * gam * np.cos(lat))
+    check(abs(gt / gam - xi_def) < 1e-8 * abs(xi_def), "recipe: xi = g_theta / gamma")
+    check(abs(-gp / gam - eta_def) < 1e-8 * abs(eta_def), "recipe: eta = -g_phi / gamma")
+    dTdr = (m(rr + 1.0, th, lon).V - m(rr - 1.0, th, lon).V) / 2.0
+    check(abs(-gr - (-dTdr)) < 1e-7 * abs(dTdr), "recipe: delta g = -g_r")
+
+    print("  geodesy checks done")
+
+
 if __name__ == "__main__":
     test_reference()
     test_api()
     test_grav()
     test_hessian()
+    test_geodesy()
     print("FAILED" if nfail else "all passed")
     sys.exit(1 if nfail else 0)
