@@ -2,7 +2,8 @@
 # components as well as the public interface); test.c includes test_*.c
 add_executable(test_potsynth test.c test_common.c ${POTSYNTH_SOURCES})
 potsynth_target_options(test_potsynth)
-target_compile_definitions(test_potsynth PRIVATE TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+target_compile_definitions(test_potsynth PRIVATE TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
+  TEST_PROJECT_VERSION="${PROJECT_VERSION}")
 
 # concurrency test with pthreads (understood by ThreadSanitizer)
 find_package(Threads)

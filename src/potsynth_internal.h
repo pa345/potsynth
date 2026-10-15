@@ -27,8 +27,11 @@
 #endif
 
 /* GCC/Clang vector extensions for the hot kernels; POTSYNTH_NO_VECEXT forces the
- * portable scalar code (used by other compilers, and tested) */
-#if (defined(__GNUC__) || defined(__clang__)) && !defined(POTSYNTH_NO_VECEXT)
+ * portable scalar code (used by other compilers, and tested). On x86 the 4-wide
+ * double vectors need AVX: without it they are emulated with SSE2 and passed
+ * through memory, about 10x slower than AVX and 2-5x slower than the scalar code */
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(POTSYNTH_NO_VECEXT) && \
+    (defined(__AVX__) || !(defined(__x86_64__) || defined(__i386__)))
 #define POTSYNTH_HAVE_VECEXT         1
 #endif
 

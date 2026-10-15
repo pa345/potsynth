@@ -3,8 +3,14 @@ Low-level ctypes bindings to the potsynth C library.
 
 The shared library is located, in order of preference, from
   1. the environment variable POTSYNTH_LIBRARY (full path),
-  2. the package directory (a library installed alongside the package),
+  2. the package directory (a library installed alongside the package, as in the
+     wheels),
   3. the system library search path (ctypes.util.find_library).
+
+The x86-64 wheels contain two builds of the library: one for CPUs with AVX2 and
+FMA (potsynth), and a portable one (potsynth_generic). The portable build is
+loaded first and asked whether the CPU supports AVX2/FMA; if so, the AVX2/FMA
+build is used. Setting POTSYNTH_GENERIC=1 forces the portable build.
 """
 import ctypes
 import ctypes.util
@@ -86,33 +92,52 @@ class Info_t(ctypes.Structure):
                 ("grid_bytes", ctypes.c_size_t)]
 
 
+def _libname(base):
+    return {"win32": f"{base}.dll", "darwin": f"lib{base}.dylib"}.get(sys.platform, f"lib{base}.so")
+
+
 def _candidates():
+    """Yield (path, generic) for each candidate library; generic marks a portable
+    build that selects the AVX2/FMA build of the same directory if the CPU allows."""
     env = os.environ.get("POTSYNTH_LIBRARY")
     if env:
-        yield env
+        yield env, False
     here = os.path.dirname(os.path.abspath(__file__))
-    names = {"win32": ["potsynth.dll", "libpotsynth.dll"],
-             "darwin": ["libpotsynth.dylib"]}.get(sys.platform, ["libpotsynth.so"])
-    for name in names:
-        yield os.path.join(here, name)
+    generic = os.path.join(here, _libname("potsynth_generic"))
+    if os.path.exists(generic):
+        yield generic, True
+    yield os.path.join(here, _libname("potsynth")), False
     found = ctypes.util.find_library("potsynth")
     if found:
-        yield found
+        yield found, False
 
 
 def _load():
+    here = os.path.dirname(os.path.abspath(__file__))
+    if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
+        os.add_dll_directory(here)    # dependencies installed next to the library
     errors = []
-    for path in _candidates():
+    for path, generic in _candidates():
         try:
-            return ctypes.CDLL(path)
+            handle = ctypes.CDLL(path)
         except OSError as exc:
             errors.append(f"{path}: {exc}")
-    raise ImportError("cannot load the potsynth shared library; build it with "
-                      "-DBUILD_SHARED_LIBS=ON and set POTSYNTH_LIBRARY to its path"
-                      + ("\n  " + "\n  ".join(errors) if errors else ""))
+            continue
+        if generic and os.environ.get("POTSYNTH_GENERIC", "0") in ("", "0"):
+            handle.potsynth_cpu_avx2_fma.restype = ctypes.c_int
+            fast = os.path.join(os.path.dirname(path), _libname("potsynth"))
+            if handle.potsynth_cpu_avx2_fma() and os.path.exists(fast):
+                try:
+                    return ctypes.CDLL(fast), fast
+                except OSError as exc:
+                    errors.append(f"{fast}: {exc}")
+        return handle, path
+    raise ImportError("cannot load the potsynth shared library; install the potsynth package, "
+                      "or build the library with -DBUILD_SHARED_LIBS=ON and set POTSYNTH_LIBRARY "
+                      "to its path" + ("\n  " + "\n  ".join(errors) if errors else ""))
 
 
-lib = _load()
+lib, library_path = _load()
 
 lib.potsynth_strerror.restype = ctypes.c_char_p
 lib.potsynth_strerror.argtypes = [ctypes.c_int]

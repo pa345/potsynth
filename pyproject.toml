@@ -1,0 +1,58 @@
+[build-system]
+requires = ["scikit-build-core>=0.10"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "potsynth"
+dynamic = ["version"]
+description = "Fast synthesis of spherical harmonic potential-field models (geomagnetic, gravity) at scattered points"
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+authors = [{ name = "Patrick Alken" }, { name = "Johnathan Burchill" }]
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.20"]
+keywords = ["spherical harmonics", "geomagnetism", "gravity field", "crustal field", "NUFFT"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: C",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Physics",
+]
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+cmake.version = ">=3.15"
+build.verbose = false
+# the package uses ctypes, not the Python C API: one wheel per platform for all Python 3
+wheel.py-api = "py3"
+wheel.packages = ["python/potsynth"]
+sdist.exclude = ["prototype/", "build/", "build-check/", "doc/_build/"]
+
+[tool.scikit-build.cmake.define]
+BUILD_SHARED_LIBS = "ON"
+POTSYNTH_WHEEL = "ON"
+POTSYNTH_NATIVE = "OFF"
+POTSYNTH_TESTS = "OFF"
+POTSYNTH_EXAMPLES = "OFF"
+
+[tool.scikit-build.metadata.version]
+provider = "scikit_build_core.metadata.regex"
+input = "python/potsynth/__init__.py"
+regex = '__version__ = "(?P<value>[^"]+)"'
+
+# release wheels: cibuildwheel (Linux manylinux/musllinux, macOS, Windows). The wheel
+# does not depend on the Python version, so one CPython build per platform suffices.
+[tool.cibuildwheel]
+build = "cp312-*"
+skip = "*-win32 *-manylinux_i686 *-musllinux_i686"
+test-requires = ["numpy"]
+test-command = "python {project}/tests/test_python.py"
+test-environment = { POTSYNTH_TEST_INSTALLED = "1" }
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]

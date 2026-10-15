@@ -5,3 +5,6 @@ build/
 __pycache__/
 *.pyc
 build-check/
+dist/
+*.whl
+*.egg-info/

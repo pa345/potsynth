@@ -127,10 +127,18 @@ Complete examples are in `examples/`.
 
 Options:
 - `POTSYNTH_OPENMP` (default ON)
-- `POTSYNTH_NATIVE` (`-march=native`, default ON)
+- `POTSYNTH_NATIVE` (`-march=native`, default ON; turn off for portable binaries)
 - `POTSYNTH_TESTS` (default ON)
-
+- `POTSYNTH_EXAMPLES` (default ON)
 - `POTSYNTH_NO_VECEXT` (portable scalar kernels; default OFF)
+
+Python package (builds the library and installs it inside the package):
+
+    pip install .
+
+`python -m build` makes a wheel for this machine and `cibuildwheel` the release
+wheels (see `pyproject.toml`). On x86-64 a wheel holds an AVX2/FMA build and a
+portable build of the library, and selects one at import time.
 
 ## Testing
 
@@ -160,7 +168,9 @@ kernels, ASan+UBSan, and TSan.
 
 1. ~~Core set-up and fused evaluation; direct method; validation~~ (done)
 2. ~~Swarm SHC reader for static models (e.g. LCS-1)~~ (done)
-3. Python wheels (pip-installable packages; the ctypes interface works now).
+3. ~~Python wheels~~ (done: `pyproject.toml` with scikit-build-core and cibuildwheel;
+   x86-64 wheels select an AVX2/FMA or a portable build at import time). Publishing to
+   PyPI waits for the public repository.
 4. ~~Gravity front-end and ICGEM `.gfc` reader~~ (done)
 5. Adjoint (transpose) operator for inversions (separate extension).
 

@@ -165,6 +165,9 @@ POTSYNTH_API int potsynth_get_info(potsynth_info * info, const potsynth_workspac
 POTSYNTH_API void potsynth_tensor_rtp2nec(const size_t n, double * T);
 POTSYNTH_API void potsynth_tensor_rtp2xyz(const size_t n, const double * theta, const double * phi, double * T);
 
+/* util.c */
+POTSYNTH_API int potsynth_cpu_avx2_fma(void);
+
 /* eval.c */
 POTSYNTH_API potsynth_eval_workspace * potsynth_eval_alloc(const size_t chunk, const potsynth_workspace * w);
 POTSYNTH_API void potsynth_eval_free(potsynth_eval_workspace * ew);

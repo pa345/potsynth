@@ -6,6 +6,7 @@ option(POTSYNTH_NATIVE "Optimize for the build machine (-march=native)" ON)
 option(POTSYNTH_TESTS "Build the tests" ON)
 option(POTSYNTH_EXAMPLES "Build the example programs" ON)
 option(POTSYNTH_NO_VECEXT "Use the portable scalar kernels instead of vector extensions" OFF)
+option(POTSYNTH_WHEEL "Python wheel layout: the library in the package directory; on x86-64 an AVX2/FMA build and a portable build" OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -76,22 +77,64 @@ potsynth_target_options(potsynth)
 target_include_directories(potsynth PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 
-set_target_properties(potsynth PROPERTIES
-  VERSION ${PROJECT_VERSION}
-  SOVERSION ${PROJECT_VERSION_MAJOR}
-  C_VISIBILITY_PRESET hidden)
+set_target_properties(potsynth PROPERTIES C_VISIBILITY_PRESET hidden)
 
 if(BUILD_SHARED_LIBS)
   target_compile_definitions(potsynth PUBLIC POTSYNTH_SHARED)
 endif()
 
-include(GNUInstallDirs)
-install(TARGETS potsynth
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES include/potsynth.h include/potsynth_mag.h include/potsynth_grav.h
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+if(POTSYNTH_WHEEL)
+  # Python wheel (scikit-build-core, see pyproject.toml): no versioned file names
+  # (wheels cannot hold symlinks); the libraries go into the package directory.
+  # On x86-64 the main library is built for AVX2/FMA and a portable build
+  # (potsynth_generic) is added; the Python loader asks the portable library
+  # whether the CPU supports AVX2/FMA (potsynth_cpu_avx2_fma) and loads the
+  # matching build.
+  if(NOT BUILD_SHARED_LIBS OR POTSYNTH_NATIVE)
+    message(FATAL_ERROR "POTSYNTH_WHEEL needs BUILD_SHARED_LIBS=ON and POTSYNTH_NATIVE=OFF")
+  endif()
+
+  if(DEFINED SKBUILD_PROJECT_VERSION AND NOT SKBUILD_PROJECT_VERSION VERSION_EQUAL PROJECT_VERSION)
+    message(FATAL_ERROR "Python package version ${SKBUILD_PROJECT_VERSION} differs from the library version ${PROJECT_VERSION}")
+  endif()
+
+  set(potsynth_x86_64 OFF)
+  if(CMAKE_OSX_ARCHITECTURES)
+    if(CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64")
+      set(potsynth_x86_64 ON)
+    endif()
+  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
+    set(potsynth_x86_64 ON)
+  endif()
+
+  if(potsynth_x86_64)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+      target_compile_options(potsynth PRIVATE -mavx2 -mfma)
+    elseif(MSVC)
+      target_compile_options(potsynth PRIVATE /arch:AVX2)
+    endif()
+
+    add_library(potsynth_generic SHARED ${POTSYNTH_SOURCES})
+    potsynth_target_options(potsynth_generic)
+    target_compile_definitions(potsynth_generic PUBLIC POTSYNTH_SHARED)
+    set_target_properties(potsynth_generic PROPERTIES C_VISIBILITY_PRESET hidden)
+    install(TARGETS potsynth_generic LIBRARY DESTINATION potsynth RUNTIME DESTINATION potsynth)
+  endif()
+
+  install(TARGETS potsynth LIBRARY DESTINATION potsynth RUNTIME DESTINATION potsynth)
+else()
+  set_target_properties(potsynth PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR})
+
+  include(GNUInstallDirs)
+  install(TARGETS potsynth
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+  install(FILES include/potsynth.h include/potsynth_mag.h include/potsynth_grav.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+endif()
 
 if(POTSYNTH_EXAMPLES)
   add_executable(example_mag examples/example_mag.c)

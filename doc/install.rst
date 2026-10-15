@@ -2,6 +2,27 @@
 Installation
 ************
 
+Python
+======
+
+From a source checkout:
+
+.. code-block:: sh
+
+   pip install .
+
+This builds the C library with CMake and installs it inside the Python package; it
+needs a C compiler. Once potsynth is published on PyPI, ``pip install potsynth`` will
+install a prebuilt wheel with the library included, and fall back to building from the
+source distribution on platforms without one.
+
+On x86-64 the wheels contain two builds of the library: one for CPUs with AVX2 and FMA
+(every Intel and AMD processor from about 2013--2015 on), and a portable one. The
+package selects the AVX2/FMA build at import time when the processor supports it. The
+portable build is 1.6 times slower in the fast method and about 4 times slower in the
+direct method; setting the environment variable ``POTSYNTH_GENERIC=1`` forces it.
+``potsynth.library_path`` shows which library was loaded.
+
 Requirements
 ============
 
@@ -37,10 +58,16 @@ option                    default  meaning
                                    extensions (the scalar kernels are always used with
                                    other compilers)
 ``POTSYNTH_TESTS``        ON       build the tests
-``POTSYNTH_EXAMPLES``     ON       build ``example_mag``
+``POTSYNTH_EXAMPLES``     ON       build ``example_mag`` and ``example_grav``
+``POTSYNTH_WHEEL``        OFF      Python wheel layout (set by ``pyproject.toml``)
 ========================  =======  ==========================================================
 
-For binaries that will run on other machines, set ``POTSYNTH_NATIVE=OFF``.
+For binaries that will run on other machines, set ``POTSYNTH_NATIVE=OFF``. On x86, the
+vector kernels then need AVX: build with ``-DCMAKE_C_FLAGS="-mavx2 -mfma"`` if the
+target machines have AVX2 and FMA. Without AVX the portable scalar kernels are used,
+which are slower but still several times faster than the vector kernels would be with
+SSE2 only. :c:func:`potsynth_cpu_avx2_fma` reports at run time whether a CPU supports
+AVX2 and FMA.
 
 .. note::
 
@@ -81,10 +108,22 @@ order:
    export PYTHONPATH=$PWD/python
    python -c "import potsynth; print(potsynth.__version__)"
 
-.. note::
+For a development setup, the package can also be used directly from the source tree
+as above. ``pip install -e .`` is not needed.
 
-   Pip-installable packages (wheels) are planned. The Python interface described in
-   :ref:`python_api` will stay the same when they arrive.
+Building wheels
+---------------
+
+The wheels are built with scikit-build-core (``pyproject.toml``):
+
+.. code-block:: sh
+
+   python -m build                 # wheel and source distribution, for this machine
+   cibuildwheel                    # release wheels: manylinux, musllinux, macOS, Windows
+
+A wheel does not depend on the Python version (the package uses ``ctypes``), so one
+build per platform covers all Python 3 versions. cibuildwheel runs the Python tests
+(``tests/test_python.py`` with ``POTSYNTH_TEST_INSTALLED=1``) on every wheel it builds.
 
 Tests
 =====

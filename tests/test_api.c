@@ -178,6 +178,15 @@ test_api(void)
   ps_test(potsynth_mag_alloc(1, L, L, gh, a, rmin, rmax, POTSYNTH_MAG_B, &params) != NULL, "api: eps = 0 rejected");
   test_last_error();
 
+  /* header version macros = CMake project version */
+  {
+    char v[64];
+
+    snprintf(v, sizeof(v), "%d.%d.%d", POTSYNTH_VERSION_MAJOR, POTSYNTH_VERSION_MINOR, POTSYNTH_VERSION_PATCH);
+    ps_test(strcmp(v, TEST_PROJECT_VERSION) != 0, "api: header version %s = project version %s", v,
+            TEST_PROJECT_VERSION);
+  }
+
   /* NEC conversion */
   out[0] = 1.0;
   out[1] = 2.0;

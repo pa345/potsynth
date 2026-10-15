@@ -21,6 +21,8 @@ from .geodesy import (GRS80, WGS84, Ellipsoid, geodetic_to_geocentric, normal_gr
 
 __version__ = "0.1.0"
 
+from ._lib import library_path  # noqa: E402  (path of the loaded C library)
+
 __all__ = ["MagModel", "GravModel", "Model", "Channel", "ShcModel", "read_shc", "rtp_to_nec",
            "GfcModel", "read_gfc", "tensor_matrix", "tensor_rtp_to_nec", "tensor_rtp_to_xyz",
            "Ellipsoid", "WGS84", "GRS80", "geodetic_to_geocentric", "normal_zonals",

@@ -695,6 +695,16 @@ out like any other output: ``T[k*n + i]``.
    Cartesian to spherical components. Unlike the spherical components, these are
    unique at the poles: they do not depend on the longitude given for a polar point.
 
+CPU features
+============
+
+.. c:function:: int potsynth_cpu_avx2_fma(void)
+
+   Returns 1 if the processor and operating system support AVX2 and FMA, and 0
+   otherwise (always 0 on other architectures). The Python package uses it to choose
+   between the AVX2/FMA build and the portable build of the library in the x86-64
+   wheels. It is safe to call on any processor.
+
 Introspection
 =============
 

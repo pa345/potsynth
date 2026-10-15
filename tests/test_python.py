@@ -2,6 +2,9 @@
 Tests of the Python interface (python/potsynth) against the reference data.
 
 Usage: POTSYNTH_LIBRARY=/path/to/libpotsynth.so python test_python.py
+
+With POTSYNTH_TEST_INSTALLED=1 the installed package (e.g. from a wheel) is
+tested instead of the source tree.
 """
 import os
 import sys
@@ -9,7 +12,8 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "python"))
+if os.environ.get("POTSYNTH_TEST_INSTALLED", "0") in ("", "0"):
+    sys.path.insert(0, os.path.join(HERE, "..", "python"))
 import potsynth  # noqa: E402
 
 nfail = 0
@@ -287,7 +291,18 @@ def test_geodesy():
     print("  geodesy checks done")
 
 
+def test_version():
+    # the Python package and the C library carry the same version
+    import re
+    with open(os.path.join(HERE, "..", "include", "potsynth.h")) as f:
+        h = f.read()
+    v = ".".join(re.search(rf"POTSYNTH_VERSION_{k}\s+(\d+)", h).group(1) for k in ("MAJOR", "MINOR", "PATCH"))
+    check(v == potsynth.__version__, f"version: header {v}, package {potsynth.__version__}")
+    print(f"  library: {potsynth.library_path}")
+
+
 if __name__ == "__main__":
+    test_version()
     test_reference()
     test_api()
     test_grav()

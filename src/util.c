@@ -14,6 +14,11 @@
 #include <malloc.h>
 #endif
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+#include <immintrin.h>
+#endif
+
 #include "potsynth_internal.h"
 
 /*
@@ -183,4 +188,41 @@ potsynth_sincos_m(const size_t m, const double phi, double * c, double * s)
 
   *s = sh + lo * ch;
   *c = ch - lo * sh;
+}
+
+/*
+potsynth_cpu_avx2_fma()
+  Report whether the CPU (and operating system) support AVX2 and FMA
+
+Return: 1 if supported, 0 otherwise (always 0 on other architectures)
+
+Notes:
+1) Used by the Python package to choose between an AVX2/FMA build of the
+library and a portable build; it is itself safe to call on any x86-64 CPU
+*/
+
+int
+potsynth_cpu_avx2_fma(void)
+{
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__x86_64__) || defined(__i386__))
+  __builtin_cpu_init();
+  return __builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma");
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+  int r[4];
+
+  /* leaf 1: FMA (ecx 12), OSXSAVE (ecx 27), AVX (ecx 28) */
+  __cpuid(r, 1);
+  if (!(r[2] & (1 << 12)) || !(r[2] & (1 << 27)) || !(r[2] & (1 << 28)))
+    return 0;
+
+  /* the OS saves the XMM and YMM registers */
+  if ((_xgetbv(0) & 6) != 6)
+    return 0;
+
+  /* leaf 7: AVX2 (ebx 5) */
+  __cpuidex(r, 7, 0);
+  return (r[1] & (1 << 5)) != 0;
+#else
+  return 0;
+#endif
 }
