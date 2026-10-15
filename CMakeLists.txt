@@ -39,6 +39,21 @@ if(POTSYNTH_OPENMP)
   find_package(OpenMP COMPONENTS C)
 endif()
 
+# -march=native where supported; Apple clang on arm64 only accepts -mcpu=native
+include(CheckCCompilerFlag)
+set(POTSYNTH_NATIVE_FLAG "")
+if(POTSYNTH_NATIVE AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+  check_c_compiler_flag(-march=native POTSYNTH_HAVE_MARCH_NATIVE)
+  if(POTSYNTH_HAVE_MARCH_NATIVE)
+    set(POTSYNTH_NATIVE_FLAG -march=native)
+  else()
+    check_c_compiler_flag(-mcpu=native POTSYNTH_HAVE_MCPU_NATIVE)
+    if(POTSYNTH_HAVE_MCPU_NATIVE)
+      set(POTSYNTH_NATIVE_FLAG -mcpu=native)
+    endif()
+  endif()
+endif()
+
 # compile options shared by the library and by targets built from its sources (tests)
 function(potsynth_target_options target)
   target_include_directories(${target} PRIVATE
@@ -53,11 +68,13 @@ function(potsynth_target_options target)
     # -ffp-contract=fast: allow fused multiply-add (strict ISO modes disable it,
     # which halves the speed of every inner loop)
     target_compile_options(${target} PRIVATE -Wall -Wextra -ffp-contract=fast)
-    if(POTSYNTH_NATIVE)
-      target_compile_options(${target} PRIVATE -march=native)
+    if(POTSYNTH_NATIVE_FLAG)
+      target_compile_options(${target} PRIVATE ${POTSYNTH_NATIVE_FLAG})
     endif()
   elseif(MSVC)
+    # C99 restrict is only a keyword in MSVC's C11 mode; __restrict always works
     target_compile_options(${target} PRIVATE /fp:contract)
+    target_compile_definitions(${target} PRIVATE restrict=__restrict _CRT_SECURE_NO_WARNINGS)
   endif()
 
   if(OpenMP_C_FOUND)

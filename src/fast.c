@@ -234,7 +234,7 @@ potsynth_fast_init(potsynth_workspace * w)
 
       if (s)
         {
-#pragma omp atomic write
+#pragma omp critical (potsynth_fast_status)
           status = s;
         }
     }
@@ -254,7 +254,7 @@ potsynth_fast_init(potsynth_workspace * w)
 
           if (s)
             {
-#pragma omp atomic write
+#pragma omp critical (potsynth_fast_status)
               status = s;
             }
         }

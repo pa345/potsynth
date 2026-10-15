@@ -1,0 +1,64 @@
+# Build and test on Linux, macOS and Windows on every push and pull request.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    name: ${{ matrix.os }} (${{ matrix.shared == 'ON' && 'shared' || 'static' }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        shared: ['ON', 'OFF']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install NumPy (Python tests)
+        run: python -m pip install numpy
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_SHARED_LIBS=${{ matrix.shared }}
+          -DPython3_EXECUTABLE=${{ env.pythonLocation }}${{ runner.os == 'Windows' && '/python.exe' || '/bin/python' }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Run the examples
+        if: matrix.shared == 'OFF'
+        shell: bash
+        run: |
+          exe=build/example_mag; [ -f build/Release/example_mag.exe ] && exe=build/Release/example_mag
+          $exe | tail -3
+          exe=build/example_grav; [ -f build/Release/example_grav.exe ] && exe=build/Release/example_grav
+          $exe | tail -3
+
+  # release, shared, generic scalar kernels, AddressSanitizer + UBSan, ThreadSanitizer
+  sanitizers:
+    name: ubuntu check.sh (all configurations)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install NumPy and GSL (optional comparison test)
+        run: |
+          python -m pip install numpy
+          sudo apt-get update && sudo apt-get install -y libgsl-dev
+      - name: check.sh
+        run: bash tests/check.sh

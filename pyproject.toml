@@ -49,10 +49,22 @@ regex = '__version__ = "(?P<value>[^"]+)"'
 # does not depend on the Python version, so one CPython build per platform suffices.
 [tool.cibuildwheel]
 build = "cp312-*"
-skip = "*-win32 *-manylinux_i686 *-musllinux_i686"
 test-requires = ["numpy"]
 test-command = "python {project}/tests/test_python.py"
 test-environment = { POTSYNTH_TEST_INSTALLED = "1" }
 
+[tool.cibuildwheel.linux]
+archs = ["x86_64"]
+
+# Apple silicon runner: native arm64 wheel, and an x86_64 wheel cross-compiled
+# (tested under Rosetta when available). aligned_alloc needs macOS 10.15.
 [tool.cibuildwheel.macos]
-archs = ["x86_64", "arm64"]
+archs = ["arm64", "x86_64"]
+environment = { MACOSX_DEPLOYMENT_TARGET = "10.15" }
+
+# bundle the MSVC OpenMP runtime (vcomp140.dll); the libraries are loaded with
+# ctypes, so delvewheel must analyze the DLLs already in the wheel
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair --analyze-existing -w {dest_dir} {wheel}"
