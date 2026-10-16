@@ -170,9 +170,14 @@ kernels, ASan+UBSan, and TSan.
 2. ~~Swarm SHC reader for static models (e.g. LCS-1)~~ (done)
 3. ~~Python wheels~~ (done: `pyproject.toml` with scikit-build-core and cibuildwheel;
    x86-64 wheels select an AVX2/FMA or a portable build at import time). Publishing to
-   PyPI waits for the public repository.
+   PyPI is planned for the first release.
 4. ~~Gravity front-end and ICGEM `.gfc` reader~~ (done)
 5. Adjoint (transpose) operator for inversions (separate extension).
+
+## Citing
+
+If you use potsynth in your work, please cite it; see `CITATION.cff` (GitHub shows it
+under "Cite this repository"). Changes between versions are listed in `CHANGELOG.md`.
 
 ## License
 

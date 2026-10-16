@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use potsynth in your work, please cite it as below."
+title: "potsynth: fast synthesis of potential-field models at scattered points"
+type: software
+authors:
+  - family-names: Alken
+    given-names: Patrick
+  - family-names: Burchill
+    given-names: Johnathan
+version: 0.1.0
+license: BSD-3-Clause
+repository-code: "https://github.com/pa345/potsynth"
+abstract: >-
+  potsynth evaluates spherical harmonic models of internal potential fields
+  (geomagnetic and gravity models) at large numbers of scattered points. After a
+  one-off set-up, the cost per point does not depend on the maximum degree of the
+  model. It provides a C library with a Python interface.
+keywords:
+  - spherical harmonics
+  - geomagnetism
+  - gravity field
+  - crustal field
+  - NUFFT
