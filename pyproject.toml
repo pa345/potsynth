@@ -58,10 +58,11 @@ test-environment = { POTSYNTH_TEST_INSTALLED = "1" }
 archs = ["native"]
 
 # Apple silicon runner: native arm64 wheel, and an x86_64 wheel cross-compiled
-# (tested under Rosetta when available). aligned_alloc needs macOS 10.15.
+# (tested under Rosetta when available). macOS 11 is the minimum for arm64
+# (cibuildwheel raises lower targets for both architectures).
 [tool.cibuildwheel.macos]
 archs = ["arm64", "x86_64"]
-environment = { MACOSX_DEPLOYMENT_TARGET = "10.15" }
+environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
 
 # bundle the MSVC OpenMP runtime (vcomp140.dll); the libraries are loaded with
 # ctypes, so delvewheel must analyze the DLLs already in the wheel
