@@ -18,6 +18,10 @@ First public release.
   `npts_hint` gives the expected number of points.
 - Generic channels (linear functionals of the potential), including the theta operators
   for gradient tensors. Results are exact at both poles: no division by sin(theta).
+- Radial basis weighted by exact mean squares over the sphere (vector spherical
+  harmonics): channels form quantities (scalar, horizontal vector, spin-2 tensor part),
+  and `eps` is relative to the largest magnitude of each quantity, e.g. B_theta and
+  B_phi relative to max |B_h|. One radial basis bounds the error of every quantity.
 - Read-only model workspace shared between threads; evaluation does not allocate memory.
   OpenMP parallelism (optional).
 

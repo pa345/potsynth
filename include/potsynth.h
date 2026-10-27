@@ -97,7 +97,7 @@ typedef struct
 
 typedef struct
 {
-  double eps;           /* requested accuracy relative to max of each channel, default 1e-10 */
+  double eps;           /* requested accuracy relative to max of each quantity, default 1e-10 */
   int method;           /* POTSYNTH_METHOD_xxx, default POTSYNTH_METHOD_AUTO */
   double sigma;         /* grid oversampling factor; 0 = default (2) */
   int w;                /* window width; 0 = chosen from eps */

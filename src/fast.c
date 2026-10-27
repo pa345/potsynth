@@ -85,7 +85,7 @@ static void fast_state_free(fast_state_t * state);
 static int fast_order(const size_t m, const fast_state_t * state, fast_thread * thread,
                       potsynth_workspace * w);
 static int fast_row(const size_t row, double * R, const fast_state_t * state, potsynth_workspace * w);
-static double op_norm(const int op, const size_t l);
+static int op_family(const int op, const int dphi);
 static long floor_mod(const long a, const long n);
 
 /*
@@ -121,51 +121,79 @@ potsynth_fast_init(potsynth_workspace * w)
   w->beta = M_PI * (1.0 - 1.0 / (2.0 * w->sigma)) * w->w;
   w->half = 0.5 * w->w;
 
-  /* step 1: radial basis, weighted by the rms size of each degree in each channel */
+  /* step 1: radial basis. Channels with the same radial power and field family
+   * (scalar, surface gradient, spin-2 tensor) form one quantity; its weight for
+   * degree l is the rms over the sphere of its degree-l part, normalized over l
+   * so that the rank truncation is relative to the size of each quantity (e.g.
+   * potential and acceleration differ by a factor ~a). The radial basis takes the
+   * largest weight over the quantities sharing a radial power. */
   wn = calloc(w->nchan * L1, sizeof(double));
   if (wn == NULL)
     {
       POTSYNTH_ERROR ("unable to allocate radial weights", POTSYNTH_ENOMEM);
     }
 
-  for (l = w->lmin; l <= L; ++l)
-    {
-      const size_t M = (l < w->mmax) ? l : w->mmax;
-      double sum0, sum = 0.0;
-
-      for (m = 0; m <= M; ++m)
-        {
-          const size_t idx = potsynth_alf_idx(l, m, L);
-          sum += w->C[idx] * w->C[idx] + w->S[idx] * w->S[idx];
-        }
-
-      /* order 0 does not contribute to phi derivatives and Pbar/sin(theta) */
-      sum0 = w->C[potsynth_alf_idx(l, 0, L)] * w->C[potsynth_alf_idx(l, 0, L)];
-
-      for (c = 0; c < w->nchan; ++c)
-        {
-          const int m1 = (w->dphi[c] > 0 || w->theta_op[c] == POTSYNTH_THETA_PSIN ||
-                          w->theta_op[c] == POTSYNTH_THETA_S2B);
-          const double s = m1 ? fmax(sum - sum0, 0.0) : sum;
-
-          wn[c * L1 + l] = fabs(w->rfac[c * L1 + l]) * op_norm(w->theta_op[c], l) * sqrt(s);
-        }
-    }
-
-  /* normalize each channel, so the rank truncation is relative to the size of
-   * each channel (e.g. potential and acceleration differ by a factor ~a) */
   for (c = 0; c < w->nchan; ++c)
     {
+      const int fam = op_family(w->theta_op[c], w->dphi[c]);
       double norm = 0.0;
+      size_t c2;
+      int seen = 0;
+
+      for (c2 = 0; c2 < c; ++c2)
+        {
+          if (fam >= 0 && w->rpow[c2] == w->rpow[c] &&
+              op_family(w->theta_op[c2], w->dphi[c2]) == fam)
+            seen = 1;
+        }
+
+      if (seen)
+        continue; /* weights set with the first channel of the quantity */
 
       for (l = w->lmin; l <= L; ++l)
-        norm += wn[c * L1 + l] * wn[c * L1 + l];
+        {
+          const size_t M = (l < w->mmax) ? l : w->mmax;
+          double msq = 0.0;
+
+          for (m = 0; m <= M; ++m)
+            {
+              const size_t idx = potsynth_alf_idx(l, m, L);
+              const double cs = w->C[idx] * w->C[idx] + w->S[idx] * w->S[idx];
+              double q = 0.0;
+
+              for (c2 = c; c2 < w->nchan; ++c2)
+                {
+                  if (c2 == c || (fam >= 0 && w->rpow[c2] == w->rpow[c] &&
+                                  op_family(w->theta_op[c2], w->dphi[c2]) == fam))
+                    {
+                      const double rf = w->rfac[c2 * L1 + l];
+                      /* spin 2: the quantity is (S2A, 2 S2B), with an m-independent norm */
+                      const double g = (fam == 2 && w->theta_op[c2] == POTSYNTH_THETA_S2B) ? 4.0 : 1.0;
+
+                      q += g * rf * rf * potsynth_op_msq(w->theta_op[c2], w->dphi[c2], l, m);
+                    }
+                }
+
+              msq += cs * q;
+            }
+
+          wn[c * L1 + l] = sqrt(msq);
+          norm += msq;
+        }
 
       if (norm > 0.0)
         {
           norm = 1.0 / sqrt(norm);
           for (l = w->lmin; l <= L; ++l)
             wn[c * L1 + l] *= norm;
+        }
+
+      /* the other channels of the quantity share its weights */
+      for (c2 = c + 1; c2 < w->nchan; ++c2)
+        {
+          if (fam >= 0 && w->rpow[c2] == w->rpow[c] &&
+              op_family(w->theta_op[c2], w->dphi[c2]) == fam)
+            memcpy(wn + c2 * L1, wn + c * L1, L1 * sizeof(double));
         }
     }
 
@@ -770,18 +798,70 @@ fast_row(const size_t row, double * R, const fast_state_t * state, potsynth_work
   return POTSYNTH_SUCCESS;
 }
 
-/* rms size of the theta operator applied to a degree-l function (radial weights) */
-static double
-op_norm(const int op, const size_t l)
+/*
+potsynth_op_msq()
+  Mean square over the sphere of a channel operator applied to one
+4-pi normalized harmonic Pbar_l^m(cos theta) cos(m phi) (or sin(m phi))
+
+Inputs: op   - operator in theta (POTSYNTH_THETA_xxx)
+        dphi - number of phi derivatives (0 or 1)
+        l    - degree
+        m    - order
+
+Return: mean square (1 for op = P, dphi = 0)
+
+Notes:
+1) Exact, from the orthogonality of the spherical harmonics. Spin 1:
+dP and Psin d/dphi (the theta and phi components of the surface gradient)
+give l(l+1) - m(2l+1)/2 and m(2l+1)/2, with sum l(l+1). Spin 2: S2A and
+S2B d/dphi give (l-1)l(l+1)(l+2) - 4 b and b, b = m(2l+1)(l(l+1) - 1 - m^2)/4,
+so that S2A^2 + 4 S2B^2 has mean square (l-1)l(l+1)(l+2). A phi derivative
+multiplies by m^2.
+2) Psin and S2B vanish for m = 0.
+*/
+
+double
+potsynth_op_msq(const int op, const int dphi, const size_t l, const size_t m)
 {
-  const double dl = (double) l;
+  const double dl = (double) l, dm = (double) m;
+  const double ll = dl * (dl + 1.0);
+  const double m2 = (dphi > 0) ? dm * dm : 1.0;
+  double q;
 
   if (op == POTSYNTH_THETA_P)
-    return 1.0;
-  else if (op == POTSYNTH_THETA_S2A || op == POTSYNTH_THETA_S2B)
-    return (l < 2) ? 0.0 : sqrt(0.5 * (dl - 1.0) * dl * (dl + 1.0) * (dl + 2.0)); /* spin-2 */
+    q = 1.0;
+  else if (op == POTSYNTH_THETA_DP)
+    q = ll - 0.5 * dm * (2.0 * dl + 1.0);
+  else if (op == POTSYNTH_THETA_PSIN)
+    q = (m == 0) ? 0.0 : 0.5 * (2.0 * dl + 1.0) / dm;
+  else if (op == POTSYNTH_THETA_S2A)
+    q = (dl - 1.0) * ll * (dl + 2.0) - dm * (2.0 * dl + 1.0) * (ll - 1.0 - dm * dm);
+  else if (op == POTSYNTH_THETA_S2B)
+    q = (m == 0) ? 0.0 : 0.25 * (2.0 * dl + 1.0) * (ll - 1.0 - dm * dm) / dm;
+  else
+    q = 0.0;
 
-  return sqrt(0.5 * dl * (dl + 1.0));
+  return (l < m) ? 0.0 : fmax(q, 0.0) * m2;
+}
+
+/*
+op_family()
+  Field family of a channel operator: 0 = scalar (P), 1 = surface gradient
+(dP, Psin d/dphi), 2 = spin-2 horizontal tensor (S2A, S2B d/dphi), -1 = none
+(the channel forms a family of its own)
+*/
+
+static int
+op_family(const int op, const int dphi)
+{
+  if (op == POTSYNTH_THETA_P && dphi == 0)
+    return 0;
+  else if ((op == POTSYNTH_THETA_DP && dphi == 0) || (op == POTSYNTH_THETA_PSIN && dphi == 1))
+    return 1;
+  else if ((op == POTSYNTH_THETA_S2A && dphi == 0) || (op == POTSYNTH_THETA_S2B && dphi == 1))
+    return 2;
+
+  return -1;
 }
 
 /* a mod n in [0, n) */

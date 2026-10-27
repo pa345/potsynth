@@ -46,7 +46,8 @@ Magnetic models
       Required by the fast method; ignored by the direct method.
    :param float rmax: largest radius (km) at which the model will be evaluated, as for
       ``rmin``
-   :param float eps: requested accuracy, relative to the largest value of each field component
+   :param float eps: requested accuracy, relative to the largest magnitude of each
+      quantity (:math:`B_r`, and :math:`\mathbf{B}_h = (B_\theta, B_\phi)`; see :ref:`accuracy`)
    :param str method: ``"auto"``, ``"fast"`` or ``"direct"``
    :param int npts_hint: expected number of evaluation points. With ``method="auto"``,
       the method with the smaller total time (set-up plus evaluation) is chosen; 0 means

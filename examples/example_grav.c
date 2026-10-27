@@ -180,7 +180,12 @@ main(int argc, char * argv[])
       for (i = 0; i < ndirect; ++i)
         {
           err = fmax(err, fabs(out[c * n + i] - outd[c * ndirect + i]));
-          vmax = fmax(vmax, fabs(outd[c * ndirect + i]));
+
+          /* g_theta and g_phi relative to the horizontal acceleration |g_h| */
+          if (c >= 2)
+            vmax = fmax(vmax, hypot(outd[2 * ndirect + i], outd[3 * ndirect + i]));
+          else
+            vmax = fmax(vmax, fabs(outd[c * ndirect + i]));
         }
 
       fprintf(stderr, "fast vs direct (%zu points), %-7s: max difference %.2e (%.1e relative)\n",

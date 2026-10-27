@@ -99,19 +99,13 @@ Substituting this into :eq:`channel` separates the radius from the angles:
 The optimal basis comes from an SVD. The functions are sampled at the :math:`K+1`
 Chebyshev--Lobatto points :math:`u_j = u_c + u_d \cos(\pi j/K)`, where
 :math:`u_c = (u_0+u_1)/2` and :math:`u_d = (u_1-u_0)/2`. These samples, weighted by
-each function's contribution to the field, form the matrix
+the size of each degree in the field (see :ref:`radial-weights`), form the matrix
 
 .. math::
 
-   X_{j,(p,l)} = \sqrt{c_j}\; w_{p,l}\; u_j^{l+p}, \qquad
-   w_{p,l} = \max_{c:\,p_c = p} |\rho_c(l)|\, \tau_c(l)\, \|C_l\|.
+   X_{j,(p,l)} = \sqrt{c_j}\; w_{p,l}\; u_j^{l+p},
 
-Here:
-
-- :math:`c_j` are the Lobatto weights: 1/2 at the end points and 1 otherwise.
-- :math:`\|C_l\|^2 = \sum_m (C_{lm}^2 + S_{lm}^2)`.
-- :math:`\tau_c(l)` is the r.m.s. size of the operator :math:`T_c D_c`: 1 for
-  :math:`\bar{P}` and :math:`\sqrt{l(l+1)/2}` for the horizontal derivatives.
+where :math:`c_j` are the Lobatto weights: 1/2 at the end points and 1 otherwise.
 
 :math:`K` is increased until the Chebyshev series of all functions are resolved, then
 reduced to the smallest degree whose truncation tail stays below tolerance.
@@ -135,6 +129,158 @@ For a satellite shell (250--800 km), :math:`\rho = 5` gives :math:`10^{-6}` accu
 and :math:`\rho \approx 12` gives :math:`10^{-14}`. Thicker shells need more radial
 functions: :math:`r \in [a, 2a]` needs :math:`\rho \approx 23` at :math:`10^{-14}`. When
 :math:`r_{\min} = r_{\max}` a single constant function is used.
+
+.. _radial-weights:
+
+Radial weights
+==============
+
+The weights :math:`w_{p,l}` define what the SVD minimizes. They are exact mean
+squares over the sphere, derived with vector spherical harmonics.
+
+**Vector spherical harmonics.** With the convention of Barrera et al. (1985),
+
+.. math::
+
+   \mathbf{Y}_{lm} = Y_{lm}\,\hat{r}, \qquad
+   \mathbf{\Psi}_{lm} = \nabla_1 Y_{lm}, \qquad
+   \mathbf{\Phi}_{lm} = \hat{r} \times \nabla_1 Y_{lm},
+
+where :math:`\nabla_1 = \hat\theta\,\partial_\theta + \hat\phi\,(\sin\theta)^{-1}\partial_\phi`
+is the gradient on the unit sphere. For :math:`Y_{lm}` normalized to unit mean square,
+:math:`\mathbf{Y}_{lm}`, :math:`\mathbf{\Psi}_{lm}`, :math:`\mathbf{\Phi}_{lm}` are
+mutually orthogonal over the sphere, orthogonal for different :math:`(l,m)`, and have
+mean squares :math:`1`, :math:`l(l+1)`, :math:`l(l+1)`. The field of an internal
+potential has no toroidal part:
+
+.. math::
+
+   \mathbf{B} = -\nabla V = \sum_{l,m} u^{l+2}\, c_{lm}
+   \left[(l+1)\,\mathbf{Y}_{lm} - \mathbf{\Psi}_{lm}\right].
+
+**Quantities.** The channels of a model form *quantities*: channels with the same
+radial power :math:`p` that are the parts of one field of a given spin weight
+:math:`s`:
+
+========  ===========================================  ==========================================
+spin      channels :math:`T_c D_c`                     examples
+========  ===========================================  ==========================================
+0         :math:`\bar{P}`                              :math:`V`, :math:`B_r`, :math:`g_r`, :math:`T_{rr}`
+1         :math:`\partial_\theta\bar{P}` and
+          :math:`(\bar{P}/\sin\theta)\,\partial_\phi`  :math:`\mathbf{B}_h = (B_\theta, B_\phi)`,
+                                                       :math:`(T_{r\theta}, T_{r\phi})`
+2         :math:`\mathcal{A}` and
+          :math:`\mathcal{B}\,\partial_\phi`           :math:`(T_{\theta\theta} - T_{\phi\phi},\, 2T_{\theta\phi})`
+========  ===========================================  ==========================================
+
+The spin-1 pair is the surface gradient :math:`\mathbf{\Psi}`; the spin-2 pair is the
+trace-free horizontal part of the Hessian, :math:`\mathcal{B}` counting twice because
+:math:`T_{\theta\phi}` appears twice in the tensor. Any other channel (for example
+:math:`\partial_\phi \bar{P}` alone) is a quantity of its own.
+
+**Mean squares.** For one 4-:math:`\pi` normalized harmonic
+:math:`\bar{P}_l^m(\cos\theta)\cos m\phi`, the mean square over the sphere of each
+operator is
+
+.. math::
+
+   \kappa_{\bar P} &= 1, \\
+   \kappa_{\partial_\theta} &= l(l+1) - \tfrac{1}{2}m(2l+1), \qquad
+   \kappa_{\partial_\phi/\sin} = \tfrac{1}{2}m(2l+1), \\
+   \kappa_{\mathcal{B}\partial_\phi} &= \tfrac{1}{4}m(2l+1)\,\left(l(l+1) - 1 - m^2\right),
+   \qquad
+   \kappa_{\mathcal{A}} = \lambda_2(l) - 4\kappa_{\mathcal{B}\partial_\phi},
+
+and a longitude derivative multiplies by :math:`m^2`. Within a quantity the
+dependence on :math:`m` cancels:
+
+.. math::
+
+   \lambda_0 = 1, \qquad
+   \lambda_1 = \kappa_{\partial_\theta} + \kappa_{\partial_\phi/\sin} = l(l+1), \qquad
+   \lambda_2 = \kappa_{\mathcal A} + 4\kappa_{\mathcal{B}\partial_\phi} = (l-1)\,l\,(l+1)(l+2).
+
+These are the norms :math:`(l+s)!/(l-s)!` of the spin-weighted harmonics, and,
+combined with the radial factors :math:`\rho_c(l)`, the eigenvalues of the Meissl
+scheme for the potential, its gradient and its Hessian (Rummel and van Gelderen,
+1995). The test suite checks every :math:`\kappa` against numerical integration.
+
+**Weights.** The mean square over the sphere at :math:`r = a` of the degree-:math:`l`
+part of a quantity :math:`q` is
+
+.. math::
+
+   W_{q,l}^2 = \sum_{c \in q} \gamma_c\, \rho_c(l)^2 \sum_{m} \kappa_c(l,m)\,
+   \left(C_{lm}^2 + S_{lm}^2\right),
+
+with :math:`\gamma_c = 4` for :math:`\mathcal{B}\partial_\phi` in a spin-2 quantity and
+1 otherwise. For a complete quantity this is
+:math:`\rho(l)^2 \lambda_s(l) \|C_l\|^2`, with
+:math:`\|C_l\|^2 = \sum_m (C_{lm}^2 + S_{lm}^2)`. Each quantity is normalized,
+:math:`\hat{w}_{q,l} = W_{q,l} / (\sum_l W_{q,l}^2)^{1/2}`, and the radial functions
+:math:`u^{l+p}` take the largest weight of the quantities with that power:
+
+.. math::
+
+   w_{p,l} = \max_{q:\, p_q = p} \hat{w}_{q,l}.
+
+For the magnetic field (Schmidt coefficients,
+:math:`\mathcal{G}_l^2 = \sum_m [(g_l^m)^2 + (h_l^m)^2]`) the two quantities are
+
+.. math::
+
+   W_{r,l}^2 = \frac{(l+1)^2}{2l+1}\,\mathcal{G}_l^2, \qquad
+   W_{h,l}^2 = \frac{l(l+1)}{2l+1}\,\mathcal{G}_l^2,
+
+whose sum :math:`(l+1)\mathcal{G}_l^2` is the Lowes--Mauersberger spectrum (Lowes,
+1966). The two differ by the factor :math:`(l+1)/l`, so for magnetic models the
+radial basis hardly depends on which of them, or their sum, is used.
+
+**What the SVD minimizes.** Let :math:`e_{p,l}(u) = u^{l+p} - \sum_i \beta_{i,l} b_i(u)`
+be the radial error. For a complete quantity, orthogonality gives the mean square
+error over the sphere exactly as :math:`\sum_l W_{q,l}^2\, e_{p,l}(u)^2`, so its
+relative error, averaged over the shell with the Chebyshev weight, satisfies
+
+.. math::
+
+   \frac{\sum_l W_{q,l}^2 \sum_j c_j\, e_{p,l}(u_j)^2}{\sum_l W_{q,l}^2}
+   = \sum_l \hat{w}_{q,l}^2 \sum_j c_j\, e_{p,l}(u_j)^2
+   \le \sum_l w_{p,l}^2 \sum_j c_j\, e_{p,l}(u_j)^2 = \|X - X_\rho\|_F^2.
+
+The truncated SVD minimizes the right-hand side (Eckart--Young), so one radial basis
+bounds the error of every quantity at once, each relative to its own size. The sum
+over :math:`j` is the Gauss--Chebyshev--Lobatto rule for
+:math:`\int_0^\pi e(u_c + u_d\cos\psi)^2\, d\psi`. For an incomplete quantity (for
+example only :math:`\partial_\theta\bar{P}`), the weights are still the exact mean
+squares of each degree, but different degrees are not orthogonal, and the bound holds
+only approximately.
+
+This is a mean-square bound, whereas :math:`\varepsilon` is a maximum-norm target
+(see :ref:`accuracy`). The rank rule :math:`s_{\rho+1} \le 0.1\varepsilon\, s_1` and
+the window width are chosen so that the measured maximum error stays below
+:math:`\varepsilon`.
+
+**Curl and divergence.** The approximation replaces :math:`u^{l+2}` in the radial
+and horizontal parts by the same function :math:`a_l(u) \approx u^{l+2}`. The result is
+not exactly a potential field:
+
+.. math::
+
+   \nabla\cdot\tilde{\mathbf{B}} = \sum_{l,m} \frac{(l+1)\, c_{lm}}{r}\, D_l(u)\, Y_{lm},
+   \qquad
+   \nabla\times\tilde{\mathbf{B}} = -\sum_{l,m} \frac{c_{lm}}{r}\, D_l(u)\, \mathbf{\Phi}_{lm},
+   \qquad
+   D_l = (l+2)\, a_l - u\, a_l'.
+
+:math:`D_l` vanishes for :math:`a_l = u^{l+2}`. Because it contains the derivative of
+the radial error, the defects are larger than the field error: for LCS-1
+(:math:`L = 185`, 250--800 km), the r.m.s. values of :math:`r\,\nabla\cdot\tilde{\mathbf{B}}`
+and :math:`r\,\nabla\times\tilde{\mathbf{B}}`, relative to :math:`|\mathbf{B}|`, are 400
+(:math:`\rho = 6`) to 6000 (:math:`\rho = 15`) times the field error, and
+:math:`8 \times 10^{-11}` at :math:`\rho = 15`. Differentiating an approximate potential
+instead gives an exactly curl-free field, but at the same rank its field error is 50
+(:math:`\rho = 6`) to 500 (:math:`\rho = 15`) times larger, so the library approximates
+the field directly.
 
 Step 2: exact Fourier series on the doubled sphere
 ==================================================
@@ -571,6 +717,8 @@ extra resolution for the gradient tensor.
   :math:`\partial^2 V/\partial x_i \partial x_j` rotated to the spherical basis, with
   agreement to :math:`10^{-40}`.
 
+.. _accuracy:
+
 Accuracy and parameter choice
 =============================
 
@@ -581,12 +729,19 @@ The fast method has three error sources:
   :math:`0.1\varepsilon`);
 - floating-point rounding.
 
-The requested accuracy :math:`\varepsilon` is relative to the largest value
-:math:`\max|f|` of each channel. Channels of very different size, such as a potential and
-its gradient, are each resolved to :math:`\varepsilon`, because the radial basis weights
-each channel by its own size. Coefficients that do not contribute to a channel (order 0
-for :math:`\partial/\partial\phi` and :math:`\bar{P}_l^m/\sin\theta`) are left out of
-its weights. The window width is the smallest :math:`w` whose *measured* error is
+The requested accuracy :math:`\varepsilon` is relative to the largest magnitude of each
+quantity (see :ref:`radial-weights`): a scalar channel such as :math:`V`, :math:`B_r` or
+:math:`g_r` relative to its own maximum, the horizontal components :math:`B_\theta` and
+:math:`B_\phi` relative to :math:`\max|\mathbf{B}_h|`, with
+:math:`|\mathbf{B}_h| = (B_\theta^2 + B_\phi^2)^{1/2}`, and the tensor channels relative to
+the maxima of :math:`|T_{rr}|`, :math:`(T_{r\theta}^2 + T_{r\phi}^2)^{1/2}` and
+:math:`((T_{\theta\theta} - T_{\phi\phi})^2 + 4T_{\theta\phi}^2)^{1/2}`. Quantities of
+very different size, such as a potential and its gradient, are each resolved to
+:math:`\varepsilon`. This target does not depend on the orientation of the coordinate
+axes. A component can be much smaller than its quantity only because of the axes, for
+example :math:`g_\phi` against :math:`g_\theta` when the model contains the flattening
+term :math:`C_{20}`; its error is then larger than :math:`\varepsilon` relative to its own
+maximum. The window width is the smallest :math:`w` whose *measured* error is
 below :math:`\varepsilon`. The measurements below are against 19-digit reference values,
 taking the worst case over :math:`L = 13` and :math:`L = 185` and over a satellite shell
 and a thick shell:
@@ -655,7 +810,10 @@ The fast method has a one-time set-up cost: building the grid. After that, each 
 is much cheaper than with the direct method. So the direct method is faster for few
 points and the fast method for many. The table gives measured times on 16 threads with
 :math:`\varepsilon = 10^{-10}`: magnetic models with 3 channels, and EGM2008
-(:math:`L = 2190`) with 1 channel.
+(:math:`L = 2190`) with 1 channel. The fast per-point time is the evaluation time for
+:math:`10^6` points divided by :math:`10^6`; the direct per-point time was measured on
+:math:`2 \times 10^4` points (it does not depend on the number of points). Set-up is not
+included in the per-point times.
 
 =====  =========  ===============  =============  ==================
 L      set-up     direct, per pt   fast, per pt   break-even points
@@ -668,6 +826,23 @@ L      set-up     direct, per pt   fast, per pt   break-even points
 720    1.1 s      39 µs            0.19 µs        about 28 000
 2190   7.6 s      222 µs           0.24 µs        about 35 000
 =====  =========  ===============  =============  ==================
+
+The direct method's cost per point is constant. The fast method's is constant only for
+large point sets: each call also has a fixed cost (starting the threads, sorting the points
+into grid blocks), and larger grids need denser points before neighbouring points share
+cached grid rows. Measured fast evaluation time per point (16 threads,
+:math:`\varepsilon = 10^{-10}`, 3 channels, ``tests/bench.c``, best of 3):
+
+==============================  ========  ========  ========  ========  ========
+points                          1000      10 000    100 000   1e6       1e7
+==============================  ========  ========  ========  ========  ========
+:math:`L = 185` (grid 64 MB)    2.8 µs    0.21 µs   0.073 µs  0.064 µs  0.073 µs
+:math:`L = 720` (grid 0.9 GB)   3.1 µs    0.78 µs   0.26 µs   0.18 µs   0.17 µs
+==============================  ========  ========  ========  ========  ========
+
+Above about :math:`10^5` points (:math:`L = 185`) or :math:`10^6` points (:math:`L = 720`)
+the time per point is essentially constant; for :math:`10^3` points the fixed cost of about
+3 ms per call dominates.
 
 Above about :math:`L = 50`, the break-even lies between about 20 000 and 50 000 points,
 because both the set-up and the direct sum grow with :math:`L`. Beyond it the fast
@@ -706,3 +881,9 @@ References
 - N. Schaeffer, Efficient spherical harmonic transforms aimed at pseudospectral
   numerical simulations, *Geochem. Geophys. Geosyst.* 14(3), 751--758, 2013.
 - M. Reinecke, pocketfft, https://gitlab.mpcdf.mpg.de/mtr/pocketfft.
+- G. Barrera, G. F. Estévez, J. Giraldo, Vector spherical harmonics and their
+  application to magnetostatics, *Eur. J. Phys.* 6, 287--294, 1985.
+- F. J. Lowes, Mean-square values on sphere of spherical harmonic vector fields,
+  *J. Geophys. Res.* 71(8), 2179, 1966.
+- R. Rummel, M. van Gelderen, Meissl scheme -- spectral characteristics of physical
+  geodesy, *Manuscr. Geod.* 20, 379--385, 1995.

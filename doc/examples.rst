@@ -120,21 +120,23 @@ Output:
 .. code-block:: text
 
    model:       EGM2008, degrees 0-720, GM = 3.9860044150e+14, a = 6378136.3000, tide system tide_free
-   set-up:      1.889 s
-   method:      fast, window w = 11, radial rank = 11, grid 1448.8 MB
-   evaluation:  1000000 points in 0.269 s
-   fast vs direct (1000 points), V      : max difference 1.01e-03 (1.7e-11 relative)
-   fast vs direct (1000 points), g_r    : max difference 1.64e-10 (1.8e-11 relative)
-   fast vs direct (1000 points), g_theta: max difference 1.96e-13 (1.4e-11 relative)
-   fast vs direct (1000 points), g_phi  : max difference 7.87e-15 (2.3e-11 relative)
+   set-up:      1.289 s
+   method:      fast, window w = 11, radial rank = 10, grid 1317.1 MB
+   evaluation:  1000000 points in 0.263 s
+   fast vs direct (1000 points), V      : max difference 9.93e-04 (1.6e-11 relative)
+   fast vs direct (1000 points), g_r    : max difference 1.49e-10 (1.6e-11 relative)
+   fast vs direct (1000 points), g_theta: max difference 2.05e-13 (1.5e-11 relative)
+   fast vs direct (1000 points), g_phi  : max difference 8.42e-14 (6.0e-12 relative)
         r [km]  colat [deg]  lon [deg]      V [m^2/s^2]      g_r [mGal]   g_theta [mGal]     g_phi [mGal]
       6830.193     102.1947   281.9157    58382566.7555    -855479.6377        -501.1826          15.7969
       6817.669      34.5840    71.1185    58436954.9878    -856289.8625        1127.6632         -11.6479
-      6678.704      57.5571    99.9989    59685986.0068    -893788.3076        1205.7504           6.0446
+      6678.704      57.5571    99.9989    59685986.0069    -893788.3076        1205.7504           6.0446
       6744.328      92.5910   226.3935    59129989.2152    -877583.7961        -112.0541          -7.5410
 
 Each quantity is accurate to :math:`\varepsilon` relative to its own size, although
-:math:`V` and :math:`g_\phi` differ by more than 11 orders of magnitude.
+:math:`V` and :math:`\mathbf{g}` differ by more than 7 orders of magnitude. The
+horizontal components are relative to the horizontal acceleration
+:math:`|\mathbf{g}_h| = (g_\theta^2 + g_\phi^2)^{1/2}` (see :ref:`accuracy`).
 
 Python
 ------
@@ -155,12 +157,12 @@ Output:
 .. code-block:: text
 
    model:       EGM2008, degrees 0-720, tide system tide_free
-   set-up:      2.320 s
-   method:      fast, window w = 11, radial rank = 11, grid 1448.8 MB
-   evaluation:  1000000 points in 0.256 s
-   fast vs direct (1000 points), V      : max difference 1.06e-03 (1.7e-11 relative)
-   fast vs direct (1000 points), g_r    : max difference 1.63e-10 (1.8e-11 relative)
-   fast vs direct (1000 points), g_theta: max difference 2.21e-13 (1.6e-11 relative)
-   fast vs direct (1000 points), g_phi  : max difference 7.28e-15 (2.3e-11 relative)
+   set-up:      1.365 s
+   method:      fast, window w = 11, radial rank = 10, grid 1317.1 MB
+   evaluation:  1000000 points in 0.203 s
+   fast vs direct (1000 points), V      : max difference 1.04e-03 (1.7e-11 relative)
+   fast vs direct (1000 points), g_r    : max difference 1.57e-10 (1.7e-11 relative)
+   fast vs direct (1000 points), g_theta: max difference 2.31e-13 (1.6e-11 relative)
+   fast vs direct (1000 points), g_phi  : max difference 9.53e-14 (6.8e-12 relative)
 
    map of g_r at 250 km: shape (181, 360), range [-908722.6, -904571.6] mGal

@@ -325,19 +325,31 @@ test_grav_model(void)
   potsynth_eval(n, r, theta, phi, D, ewd);
   potsynth_eval(n, r, theta, phi, F, ewf);
 
-  /* fast against direct, relative to the maximum of each channel */
-  for (c = 0; c < 4; ++c)
-    {
-      double emax = 0.0, vmax = 0.0;
+  /* fast against direct, relative to the maximum of each quantity: V, g_r and
+   * the horizontal acceleration |g_h| = (g_theta^2 + g_phi^2)^(1/2) */
+  {
+    double ghmax = 0.0;
 
-      for (i = 0; i < n; ++i)
-        {
-          emax = fmax(emax, fabs(F[c * n + i] - D[c * n + i]));
-          vmax = fmax(vmax, fabs(D[c * n + i]));
-        }
+    for (i = 0; i < n; ++i)
+      ghmax = fmax(ghmax, hypot(D[2 * n + i], D[3 * n + i]));
 
-      ps_test(emax / vmax > 1.0e-9, "grav: fast vs direct L=%zu %s (error %.2e)", L, names[c], emax / vmax);
-    }
+    for (c = 0; c < 4; ++c)
+      {
+        double emax = 0.0, vmax = 0.0;
+
+        for (i = 0; i < n; ++i)
+          {
+            emax = fmax(emax, fabs(F[c * n + i] - D[c * n + i]));
+            vmax = fmax(vmax, fabs(D[c * n + i]));
+          }
+
+        if (c >= 2)
+          vmax = ghmax;
+
+        ps_test(emax / vmax > 1.0e-9, "grav: fast vs direct L=%zu %s (error %.2e)", L, names[c],
+                emax / vmax);
+      }
+  }
 
   /* g = grad V by central differences of the direct potential */
   {

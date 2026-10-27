@@ -56,14 +56,17 @@ t0 = time.perf_counter()
 field = model(r, theta, phi)
 print(f"evaluation:  {npts} points in {time.perf_counter() - t0:.3f} s")
 
-# 5. compare the first 1000 points with the direct sum, quantity by quantity
+# 5. compare the first 1000 points with the direct sum, quantity by quantity;
+# g_theta and g_phi relative to the horizontal acceleration |g_h|
 direct = potsynth.GravModel(coef, GM, a, quantities="V,g", method="direct")
 fd = direct(r[:1000], theta[:1000], phi[:1000])
+gh = np.max(np.hypot(fd.g_theta, fd.g_phi))
 for name in model.quantities:
     x, xd = getattr(field, name)[:1000], getattr(fd, name)
     err = np.max(np.abs(x - xd))
+    size = gh if name in ("g_theta", "g_phi") else np.max(np.abs(xd))
     print(f"fast vs direct (1000 points), {name:7s}: max difference {err:.2e} "
-          f"({err / np.max(np.abs(xd)):.1e} relative)")
+          f"({err / size:.1e} relative)")
 
 # 6. a 1-degree map of the radial acceleration at 250 km altitude (broadcasting), in mGal
 colat = np.radians(np.arange(0.0, 180.5, 1.0))[:, None]

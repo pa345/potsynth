@@ -140,8 +140,11 @@ Parameters
 
    .. c:member:: double eps
 
-      Requested accuracy, relative to the largest value of each output channel. Default
-      :math:`10^{-10}`. Any value from about :math:`10^{-4}` down to
+      Requested accuracy, relative to the largest magnitude of each quantity: scalar
+      channels (:math:`V`, :math:`B_r`, :math:`g_r`, :math:`T_{rr}`) relative to their own
+      maximum, horizontal components relative to the maximum of the horizontal vector
+      (e.g. :math:`B_\theta` and :math:`B_\phi` relative to :math:`\max|\mathbf{B}_h|`), see
+      :ref:`accuracy`. Default :math:`10^{-10}`. Any value from about :math:`10^{-4}` down to
       :math:`5 \times 10^{-15}` (the double-precision floor) is meaningful.
 
    .. c:member:: int method
@@ -370,8 +373,10 @@ what is needed: for example :c:macro:`POTSYNTH_GRAV_GR` alone for radial gravity
    :param params: parameters, or ``NULL`` for the defaults
    :returns: the workspace, or ``NULL`` on error (reported to the error handler)
 
-   The accuracy :c:member:`potsynth_parameters.eps` applies to each channel
-   separately. For a full model, each channel is dominated by its central
+   The accuracy :c:member:`potsynth_parameters.eps` applies to each quantity
+   separately (:math:`V`, :math:`g_r`, the horizontal acceleration
+   :math:`(g_\theta, g_\phi)`, and the three parts of the tensor; see :ref:`accuracy`).
+   For a full model, each quantity is dominated by its central
    (:math:`l = 0`) term; for :math:`10^{-10}` the potential is accurate to about
    :math:`10^{-3}` m\ :sup:`2`/s\ :sup:`2` (0.1 mm of geoid height) and
    :math:`g_r` to about :math:`2 \times 10^{-5}` mGal, measured with EGM2008 at satellite
