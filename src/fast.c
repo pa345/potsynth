@@ -106,7 +106,6 @@ potsynth_fast_init(potsynth_workspace * w)
   fast_state_t state;
   double * wn;
   double tol;
-  size_t c, l, m;
   long mm, rr;
   int status = POTSYNTH_SUCCESS;
 
@@ -121,85 +120,15 @@ potsynth_fast_init(potsynth_workspace * w)
   w->beta = M_PI * (1.0 - 1.0 / (2.0 * w->sigma)) * w->w;
   w->half = 0.5 * w->w;
 
-  /* step 1: radial basis. Channels with the same radial power and field family
-   * (scalar, surface gradient, spin-2 tensor) form one quantity; its weight for
-   * degree l is the rms over the sphere of its degree-l part, normalized over l
-   * so that the rank truncation is relative to the size of each quantity (e.g.
-   * potential and acceleration differ by a factor ~a). The radial basis takes the
-   * largest weight over the quantities sharing a radial power. */
-  wn = calloc(w->nchan * L1, sizeof(double));
+  /* step 1: radial basis */
+  wn = malloc(w->nchan * L1 * sizeof(double));
   if (wn == NULL)
     {
       POTSYNTH_ERROR ("unable to allocate radial weights", POTSYNTH_ENOMEM);
     }
 
-  for (c = 0; c < w->nchan; ++c)
-    {
-      const int fam = op_family(w->theta_op[c], w->dphi[c]);
-      double norm = 0.0;
-      size_t c2;
-      int seen = 0;
-
-      for (c2 = 0; c2 < c; ++c2)
-        {
-          if (fam >= 0 && w->rpow[c2] == w->rpow[c] &&
-              op_family(w->theta_op[c2], w->dphi[c2]) == fam)
-            seen = 1;
-        }
-
-      if (seen)
-        continue; /* weights set with the first channel of the quantity */
-
-      for (l = w->lmin; l <= L; ++l)
-        {
-          const size_t M = (l < w->mmax) ? l : w->mmax;
-          double msq = 0.0;
-
-          for (m = 0; m <= M; ++m)
-            {
-              const size_t idx = potsynth_alf_idx(l, m, L);
-              const double cs = w->C[idx] * w->C[idx] + w->S[idx] * w->S[idx];
-              double q = 0.0;
-
-              for (c2 = c; c2 < w->nchan; ++c2)
-                {
-                  if (c2 == c || (fam >= 0 && w->rpow[c2] == w->rpow[c] &&
-                                  op_family(w->theta_op[c2], w->dphi[c2]) == fam))
-                    {
-                      const double rf = w->rfac[c2 * L1 + l];
-                      /* spin 2: the quantity is (S2A, 2 S2B), with an m-independent norm */
-                      const double g = (fam == 2 && w->theta_op[c2] == POTSYNTH_THETA_S2B) ? 4.0 : 1.0;
-
-                      q += g * rf * rf * potsynth_op_msq(w->theta_op[c2], w->dphi[c2], l, m);
-                    }
-                }
-
-              msq += cs * q;
-            }
-
-          wn[c * L1 + l] = sqrt(msq);
-          norm += msq;
-        }
-
-      if (norm > 0.0)
-        {
-          norm = 1.0 / sqrt(norm);
-          for (l = w->lmin; l <= L; ++l)
-            wn[c * L1 + l] *= norm;
-        }
-
-      /* the other channels of the quantity share its weights */
-      for (c2 = c + 1; c2 < w->nchan; ++c2)
-        {
-          if (fam >= 0 && w->rpow[c2] == w->rpow[c] &&
-              op_family(w->theta_op[c2], w->dphi[c2]) == fam)
-            memcpy(wn + c2 * L1, wn + c * L1, L1 * sizeof(double));
-        }
-    }
-
-  tol = (w->params.rank_tol > 0.0) ? w->params.rank_tol : 0.1 * w->params.eps;
-  if (tol < 1.0e-16)
-    tol = 1.0e-16;
+  potsynth_radial_weights(w, 1, wn);
+  tol = potsynth_radial_tol(&(w->params));
 
   w->radial_workspace_p = potsynth_radial_alloc(w->a / w->rmax, w->a / w->rmin, w->lmin, L,
                                                 w->nchan, w->rpow, wn, tol);
@@ -796,6 +725,112 @@ fast_row(const size_t row, double * R, const fast_state_t * state, potsynth_work
     }
 
   return POTSYNTH_SUCCESS;
+}
+
+/*
+potsynth_radial_weights()
+  Weights of the radial basis (step 1). Channels with the same radial power and
+field family (scalar, surface gradient, spin-2 tensor) form one quantity; its
+weight for degree l is the rms over the sphere of its degree-l part at r = a
+
+Inputs: w         - workspace, with coefficients and channels set
+        normalize - 1: normalize the weights of each quantity over l to unit
+                    sum of squares, so that the rank truncation is relative to
+                    the size of each quantity (e.g. potential and acceleration
+                    differ by a factor ~a); 0: rms values
+        wn        - (output) weights wn[c*(lmax+1) + l], length nchan*(lmax+1);
+                    all channels of a quantity get the same weights
+
+Notes:
+1) The radial basis takes the largest weight over the quantities sharing a
+radial power (potsynth_radial_alloc)
+*/
+
+void
+potsynth_radial_weights(const potsynth_workspace * w, const int normalize, double * wn)
+{
+  const size_t L = w->lmax;
+  const size_t L1 = L + 1;
+  size_t c, l, m;
+
+  memset(wn, 0, w->nchan * L1 * sizeof(double));
+
+  for (c = 0; c < w->nchan; ++c)
+    {
+      const int fam = op_family(w->theta_op[c], w->dphi[c]);
+      double norm = 0.0;
+      size_t c2;
+      int seen = 0;
+
+      for (c2 = 0; c2 < c; ++c2)
+        {
+          if (fam >= 0 && w->rpow[c2] == w->rpow[c] &&
+              op_family(w->theta_op[c2], w->dphi[c2]) == fam)
+            seen = 1;
+        }
+
+      if (seen)
+        continue; /* weights set with the first channel of the quantity */
+
+      for (l = w->lmin; l <= L; ++l)
+        {
+          const size_t M = (l < w->mmax) ? l : w->mmax;
+          double msq = 0.0;
+
+          for (m = 0; m <= M; ++m)
+            {
+              const size_t idx = potsynth_alf_idx(l, m, L);
+              const double cs = w->C[idx] * w->C[idx] + w->S[idx] * w->S[idx];
+              double q = 0.0;
+
+              for (c2 = c; c2 < w->nchan; ++c2)
+                {
+                  if (c2 == c || (fam >= 0 && w->rpow[c2] == w->rpow[c] &&
+                                  op_family(w->theta_op[c2], w->dphi[c2]) == fam))
+                    {
+                      const double rf = w->rfac[c2 * L1 + l];
+                      /* spin 2: the quantity is (S2A, 2 S2B), with an m-independent norm */
+                      const double g = (fam == 2 && w->theta_op[c2] == POTSYNTH_THETA_S2B) ? 4.0 : 1.0;
+
+                      q += g * rf * rf * potsynth_op_msq(w->theta_op[c2], w->dphi[c2], l, m);
+                    }
+                }
+
+              msq += cs * q;
+            }
+
+          wn[c * L1 + l] = sqrt(msq);
+          norm += msq;
+        }
+
+      if (normalize && norm > 0.0)
+        {
+          norm = 1.0 / sqrt(norm);
+          for (l = w->lmin; l <= L; ++l)
+            wn[c * L1 + l] *= norm;
+        }
+
+      /* the other channels of the quantity share its weights */
+      for (c2 = c + 1; c2 < w->nchan; ++c2)
+        {
+          if (fam >= 0 && w->rpow[c2] == w->rpow[c] &&
+              op_family(w->theta_op[c2], w->dphi[c2]) == fam)
+            memcpy(wn + c2 * L1, wn + c * L1, L1 * sizeof(double));
+        }
+    }
+}
+
+/*
+potsynth_radial_tol()
+  Relative tolerance of the radial rank truncation: rank_tol, or 0.1 eps by
+default (the rest of the error budget goes to the window), and at least 1e-16
+*/
+
+double
+potsynth_radial_tol(const potsynth_parameters * params)
+{
+  const double tol = (params->rank_tol > 0.0) ? params->rank_tol : 0.1 * params->eps;
+  return (tol < 1.0e-16) ? 1.0e-16 : tol;
 }
 
 /*

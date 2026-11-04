@@ -220,6 +220,8 @@ void potsynth_error(const char * reason, const char * file, int line, int potsyn
 /* fast.c */
 int potsynth_fast_init(potsynth_workspace * w);
 double potsynth_op_msq(const int op, const int dphi, const size_t l, const size_t m);
+void potsynth_radial_weights(const potsynth_workspace * w, const int normalize, double * wn);
+double potsynth_radial_tol(const potsynth_parameters * params);
 
 /* radial.c */
 potsynth_radial_workspace * potsynth_radial_alloc(const double u0, const double u1,
